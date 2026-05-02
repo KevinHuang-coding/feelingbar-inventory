@@ -496,10 +496,8 @@ async function openDetail(itemId, mode) {
   document.getElementById('sumOut').textContent = '-' + it.consume_qty;
   document.getElementById('sumTheo').textContent = it.theoretical_qty;
 
-  // 全交易歷程
   await loadActivityLog();
 
-  // 表單
   const formSection = document.getElementById('formSection');
   if (mode === 'history') {
     formSection.style.display = 'none';
@@ -512,4 +510,177 @@ async function openDetail(itemId, mode) {
   document.getElementById('formQtyHelper').textContent = '';
 
   const submitBtn = document.getElementById('formSubmit');
-  submitBtn.classList.remove('btn-submit-purchase','btn-su
+  submitBtn.classList.remove('btn-submit-purchase','btn-submit-consume','btn-submit-physical');
+
+  if (mode === 'purchase') {
+    document.getElementById('formTitle').textContent = '新增進貨紀錄';
+    document.getElementById('formDateLabel').textContent = '進貨日期';
+    document.getElementById('formQtyLabel').textContent = `進貨數量 (${it.unit || ''})`;
+    submitBtn.textContent = '送出進貨';
+    submitBtn.classList.add('btn-submit-purchase');
+  } else if (mode === 'consume') {
+    document.getElementById('formTitle').textContent = '新增消耗紀錄';
+    document.getElementById('formDateLabel').textContent = '消耗日期';
+    document.getElementById('formQtyLabel').textContent = `消耗數量 (${it.unit || ''})`;
+    submitBtn.textContent = '送出消耗';
+    submitBtn.classList.add('btn-submit-consume');
+  } else if (mode === 'physical') {
+    document.getElementById('formTitle').textContent = '月底實際盤點';
+    document.getElementById('formDateLabel').textContent = '盤點日期';
+    document.getElementById('formQtyLabel').textContent = `實際盤點數量 (${it.unit || ''})`;
+    document.getElementById('formQty').value = it.theoretical_qty;
+    document.getElementById('formQtyHelper').textContent = `預填理論值 ${it.theoretical_qty}，請依實際盤點數修改後送出`;
+    submitBtn.textContent = '送出實際盤點';
+    submitBtn.classList.add('btn-submit-physical');
+  }
+}
+
+async function loadActivityLog() {
+  const it = APP.currentItem;
+  const log = await api('getActivityLog', { itemId: it.item_id, month: APP.currentMonth });
+  document.getElementById('activityCount').textContent = log.length;
+  const listEl = document.getElementById('activityList');
+  if (!log.length) {
+    listEl.innerHTML = '<div class="history-empty">本月尚無任何交易紀錄</div>';
+    return;
+  }
+  listEl.innerHTML = log.map(r => `
+    <div class="activity-row">
+      <div class="activity-time">${escapeHtml(String(r.timestamp).substring(0,16))}</div>
+      <div class="activity-type ${r.type}">${r.type}</div>
+      <div class="activity-op">${escapeHtml(r.operator)}${r.note ? ' · ' + escapeHtml(r.note) : ''}</div>
+      <div class="activity-qty ${r.type}">${r.sign === '=' ? '=' + r.qty : r.sign + r.qty}</div>
+    </div>
+  `).join('');
+}
+
+// ============= 表單送出 =============
+async function submitForm() {
+  const date = document.getElementById('formDate').value;
+  const qty = document.getElementById('formQty').value;
+  const note = document.getElementById('formNote').value;
+  if (!date || qty === '' || isNaN(Number(qty))) { toast('請填寫日期與數量', 'error'); return; }
+  if (Number(qty) < 0) { toast('數量不可為負', 'error'); return; }
+
+  const btn = document.getElementById('formSubmit');
+  btn.disabled = true;
+  try {
+    if (APP.formMode === 'purchase') {
+      await api('addPurchase', {
+        item_id: APP.currentItem.item_id,
+        purchase_date: date, qty: Number(qty),
+        operator: APP.user.username, note
+      }, 'POST');
+      toast('進貨紀錄新增成功', 'success');
+    } else if (APP.formMode === 'consume') {
+      await api('addConsumption', {
+        item_id: APP.currentItem.item_id,
+        consume_date: date, qty: Number(qty),
+        operator: APP.user.username, note
+      }, 'POST');
+      toast('消耗紀錄新增成功', 'success');
+    } else if (APP.formMode === 'physical') {
+      const month = String(date).substring(0, 7);
+      await api('addPhysicalCount', {
+        item_id: APP.currentItem.item_id,
+        month, qty: Number(qty),
+        counter: APP.user.username, note
+      }, 'POST');
+      toast('實際盤點已記錄', 'success');
+    }
+    await loadInventory();
+    backToMain();
+  } catch (e) {
+    toast('送出失敗：' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function backToMain() {
+  document.getElementById('detailScreen').style.display = 'none';
+  document.getElementById('adminScreen').style.display = 'none';
+  document.getElementById('mainScreen').style.display = 'block';
+  APP.currentItem = null;
+  APP.formMode = '';
+  window.scrollTo(0, 0);
+}
+
+// ============= Admin 人員管理 =============
+async function openUserAdmin() {
+  document.getElementById('mainScreen').style.display = 'none';
+  document.getElementById('adminScreen').style.display = 'block';
+  await loadUserAdmin();
+}
+
+async function loadUserAdmin() {
+  const users = await api('getUserList');
+  const list = document.getElementById('userAdminList');
+  list.innerHTML = users.map(u => {
+    const isLocked = u.locked;
+    const isMe = u.username === APP.user.username;
+    return `
+      <div class="user-card">
+        <div class="user-info">
+          <span class="name">${escapeHtml(u.username)}</span>
+          <span class="role ${u.role}">${u.role}</span>
+          ${isMe ? '<span style="color:#95A5A6;font-size:11px;margin-left:6px;">(你自己)</span>' : ''}
+          <div class="meta">失敗次數：${u.fail_count} 次</div>
+          ${isLocked ? '<div class="locked-tag">🔒 已鎖定</div>' : ''}
+        </div>
+        ${(isLocked && !isMe) ? `<button class="btn-unlock" onclick='doUnlock("${escapeHtml(u.username)}")'>解鎖</button>` : ''}
+        ${(!isLocked && !isMe) ? `<button class="btn-unlock" style="background:#7F8C8D;" onclick='doResetPassword("${escapeHtml(u.username)}")'>重設密碼</button>` : ''}
+      </div>`;
+  }).join('');
+}
+
+async function doUnlock(targetUser) {
+  if (!confirm(`確定要解鎖「${targetUser}」？`)) return;
+  try {
+    await api('unlockUser', {
+      adminUser: APP.user.username, targetUser, newPassword: ''
+    }, 'POST');
+    toast(`${targetUser} 已解鎖`, 'success');
+    loadUserAdmin();
+  } catch (e) {
+    toast('解鎖失敗：' + e.message, 'error');
+  }
+}
+
+async function doResetPassword(targetUser) {
+  const newPwd = prompt(`為「${targetUser}」設定新密碼（建議 4-6 位數字）：`);
+  if (!newPwd) return;
+  if (!/^[A-Za-z0-9]{3,16}$/.test(newPwd)) {
+    toast('密碼格式不對，請使用 3-16 位英數字', 'error');
+    return;
+  }
+  try {
+    await api('unlockUser', {
+      adminUser: APP.user.username, targetUser, newPassword: newPwd
+    }, 'POST');
+    toast(`${targetUser} 密碼已重設為 ${newPwd}`, 'success');
+    loadUserAdmin();
+  } catch (e) {
+    toast('重設失敗：' + e.message, 'error');
+  }
+}
+
+// ============= 啟動 =============
+window.addEventListener('DOMContentLoaded', () => {
+  const cached = sessionStorage.getItem('user');
+  if (cached) {
+    try {
+      APP.user = JSON.parse(cached);
+      initApp();
+      return;
+    } catch (e) {}
+  }
+  loadUserSelect();
+});
+
+document.getElementById('loginPassword').addEventListener('keypress', e => {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>

@@ -105,18 +105,25 @@
   .item-name .delete-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; flex-shrink: 0; }
   .item-name .delete-btn:hover { background: var(--danger); color: #fff; }
   .item-meta { font-size: 11px; color: var(--text-faint); margin-bottom: 8px; }
-  .item-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; font-size: 11px; margin-bottom: 8px; }
-  .stat { padding: 5px 2px; text-align: center; background: var(--bg-stat); border-radius: 4px; }
-  .stat-label { color: var(--text-faint); font-size: 10px; line-height: 1.2; }
-  .stat-value { font-weight: 700; color: var(--text-main); font-size: 13px; margin-top: 2px; }
-  .stat.theoretical { background: #1B3142; }
-  .stat.theoretical .stat-value { color: #5DADE2; }
-  .stat.physical { background: #3A2742; }
-  .stat.physical .stat-value { color: #BB8FCE; }
-  .stat.diff { background: #3A2818; }
-  .stat.diff .stat-value { color: #DC9866; }
-  .stat.diff.shortage .stat-value { color: #FF6B6B; }
-  .stat.diff.surplus .stat-value { color: #58D68D; }
+  .item-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; font-size: 11px; margin-bottom: 10px; }
+  .stat { padding: 6px 2px; text-align: center; background: #2E4035; border-radius: 5px; border: 1px solid #3A4D40; }
+  .stat-label { color: #C5D0C8; font-size: 10px; line-height: 1.25; font-weight: 500; }
+  .stat-value { font-weight: 800; color: #FFFFFF; font-size: 15px; margin-top: 3px; letter-spacing: 0.3px; }
+  .stat.theoretical { background: #1F4264; border-color: #2A5C8C; }
+  .stat.theoretical .stat-label { color: #B8D8F0; }
+  .stat.theoretical .stat-value { color: #7CC0F5; }
+  .stat.physical { background: #4A2D5A; border-color: #6B3F82; }
+  .stat.physical .stat-label { color: #E0C8EE; }
+  .stat.physical .stat-value { color: #D4A6E8; }
+  .stat.diff { background: #4D3520; border-color: #6B4830; }
+  .stat.diff .stat-label { color: #EFD0AC; }
+  .stat.diff .stat-value { color: #F0AD6E; }
+  .stat.diff.shortage { background: #5C2828; border-color: #8C3A3A; }
+  .stat.diff.shortage .stat-label { color: #F0BCBC; }
+  .stat.diff.shortage .stat-value { color: #FF7878; }
+  .stat.diff.surplus { background: #1F4D32; border-color: #2A6C44; }
+  .stat.diff.surplus .stat-label { color: #BCE8C8; }
+  .stat.diff.surplus .stat-value { color: #6CE090; }
 
   /* ===== 統一按鈕色 (v2.2) ===== */
   .item-actions { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px; }
@@ -509,25 +516,40 @@ function toggleSearch() {
 }
 
 // ============= 主畫面渲染 =============
+// v2.3 分類順序：依使用頻率（酒水飲品最常動，包材備品最少動）
+const CATEGORY_ORDER = ['酒水&飲品類','果汁及飲料','食材','副食材','甜點','清潔用品','包材備品'];
+
 function renderCategoryTabs() {
   const counts = {};
   APP.inventory.forEach(it => {
     const c = it.category || '其他';
     counts[c] = (counts[c] || 0) + 1;
   });
-  const catOrder = ['包材備品','清潔用品','食材','副食材','酒水&飲品類','甜點','果汁及飲料'];
-  const cats = catOrder.filter(c => counts[c]).concat(Object.keys(counts).filter(c => !catOrder.includes(c)));
+  const cats = CATEGORY_ORDER.filter(c => counts[c]).concat(Object.keys(counts).filter(c => !CATEGORY_ORDER.includes(c)));
 
   const total = APP.inventory.length;
-  const tabsHtml = [`<button class="cat-tab ${APP.activeCategory === 'ALL' ? 'active' : ''}" onclick="switchCategory('ALL')">全部 <span class="count">(${total})</span></button>`]
-    .concat(cats.map(c => `<button class="cat-tab ${APP.activeCategory === c ? 'active' : ''}" onclick="switchCategory(${JSON.stringify(c)})">${escapeHtml(c)} <span class="count">(${counts[c]})</span></button>`));
-  document.getElementById('catTabs').innerHTML = tabsHtml.join('');
+  // v2.3 修復: 改用 data-cat 屬性避免 & 字元在 onclick 屬性中被 HTML 解析
+  const tabsHtml = [`<button class="cat-tab ${APP.activeCategory === 'ALL' ? 'active' : ''}" data-cat="ALL">全部 <span class="count">(${total})</span></button>`]
+    .concat(cats.map(c => `<button class="cat-tab ${APP.activeCategory === c ? 'active' : ''}" data-cat="${escapeHtml(c)}">${escapeHtml(c)} <span class="count">(${counts[c]})</span></button>`));
+
+  const tabsEl = document.getElementById('catTabs');
+  tabsEl.innerHTML = tabsHtml.join('');
+
+  // 事件代理（避免重複綁定）
+  if (!tabsEl._bound) {
+    tabsEl.addEventListener('click', e => {
+      const btn = e.target.closest('.cat-tab');
+      if (btn && btn.dataset.cat) switchCategory(btn.dataset.cat);
+    });
+    tabsEl._bound = true;
+  }
 }
 
 function switchCategory(cat) {
   APP.activeCategory = cat;
   renderCategoryTabs();
   renderInventory();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function renderInventory() {
@@ -553,8 +575,7 @@ function renderInventory() {
     if (!byCat[cat]) byCat[cat] = [];
     byCat[cat].push(it);
   });
-  const catOrder = ['包材備品','清潔用品','食材','副食材','酒水&飲品類','甜點','果汁及飲料'];
-  const sortedCats = catOrder.filter(c => byCat[c]).concat(Object.keys(byCat).filter(c => !catOrder.includes(c)));
+  const sortedCats = CATEGORY_ORDER.filter(c => byCat[c]).concat(Object.keys(byCat).filter(c => !CATEGORY_ORDER.includes(c)));
 
   list.innerHTML = sortedCats.map(cat => {
     const rows = byCat[cat].map(it => itemRowHtml(it)).join('');

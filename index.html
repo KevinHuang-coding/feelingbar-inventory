@@ -23,126 +23,178 @@
 <meta name="msapplication-TileImage" content="icon-192.png">
 <!-- ========== 結束 PWA 設定 ========== -->
 <style>
+  /* ===== v2.2 深色主題 (Feeling Bar 深綠) ===== */
+  :root {
+    --bg-main: #0F1B14;       /* 主背景 - 極深綠黑 */
+    --bg-card: #1A2920;       /* 卡片背景 - 略深綠 */
+    --bg-stat: #243A2E;       /* 統計欄底色 */
+    --bg-input: #1A2920;      /* 輸入框背景 */
+    --border: #2C4035;        /* 邊框色 */
+    --text-main: #E8EAED;     /* 主文字 */
+    --text-sub: #95A5A6;      /* 次文字 */
+    --text-faint: #6C7A6F;    /* 弱文字 */
+    --primary: #1F4D38;       /* 品牌深綠（按鈕主色） */
+    --primary-hover: #2A6B4D; /* 按鈕 hover */
+    --primary-light: #3A8862; /* 強調文字色 */
+    --admin: #F39C12;         /* admin 標記 */
+    --danger: #C0392B;        /* 危險/盤虧 */
+    --success: #27AE60;       /* 成功/盤盈 */
+    --warn: #E67E22;          /* 警告/消耗 */
+    --info: #3498DB;          /* 資訊/理論值 */
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "微軟正黑體", "Helvetica Neue", Arial, sans-serif; background: #F4F6F8; color: #2C3E50; }
+  html, body { margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Microsoft JhengHei", "微軟正黑體", "Helvetica Neue", Arial, sans-serif; background: var(--bg-main); color: var(--text-main); }
 
   /* ===== Header ===== */
-  .top-bar { position: sticky; top: 0; z-index: 100; background: #2C3E50; color: #fff; padding: 10px 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-  .top-row { display:flex; justify-content:space-between; align-items:center; }
+  .top-bar { position: sticky; top: 0; z-index: 100; background: #0A1410; color: var(--text-main); padding: 10px 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.5); border-bottom: 1px solid var(--border); }
+  .top-row { display: flex; justify-content: space-between; align-items: center; }
   .top-bar h1 { margin: 0; font-size: 16px; font-weight: 600; }
-  .top-bar .who { font-size: 12px; opacity: 0.85; }
-  .top-bar .who .username { font-weight: 700; }
-  .top-bar .who .badge-admin { background: #F39C12; color: #fff; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 4px; }
+  .top-bar .who { font-size: 12px; color: var(--text-sub); }
+  .top-bar .who .username { font-weight: 700; color: var(--text-main); }
+  .top-bar .who .badge-admin { background: var(--admin); color: #fff; padding: 1px 6px; border-radius: 8px; font-size: 10px; margin-left: 4px; }
   .top-bar .actions { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
-  .top-bar select { background: #fff; color: #2C3E50; border: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; }
-  .top-bar button { background: rgba(255,255,255,0.2); color: #fff; border: none; padding: 6px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
-  .top-bar button.btn-admin { background: #F39C12; }
+  .top-bar select { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+  .top-bar button { background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border); padding: 6px 10px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  .top-bar button:active { background: var(--primary); }
+  .top-bar button.btn-admin { background: var(--admin); color: #fff; border-color: var(--admin); }
+  .top-bar button.btn-add-item { background: var(--primary); color: #fff; border-color: var(--primary); }
 
   /* ===== 登入頁 ===== */
-  .login-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #2C3E50 0%, #4A6175 100%); color: #fff; }
-  .login-logo-img { width: 200px; height: auto; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .login-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; background: linear-gradient(135deg, #0F1B14 0%, #1A2920 50%, #243A2E 100%); color: var(--text-main); }
+  .login-logo-img { width: 200px; height: auto; margin-bottom: 12px; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
   .login-logo { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
-  .login-subtitle { font-size: 14px; opacity: 0.85; margin-bottom: 32px; }
+  .login-subtitle { font-size: 14px; color: var(--text-sub); margin-bottom: 32px; }
   .login-form { width: 100%; max-width: 320px; }
   .login-form .row { margin-bottom: 14px; }
-  .login-form label { display: block; font-size: 13px; opacity: 0.85; margin-bottom: 6px; }
-  .login-form select, .login-form input { width: 100%; padding: 14px; font-size: 16px; border: 2px solid rgba(255,255,255,0.25); border-radius: 10px; background: rgba(255,255,255,0.1); color: #fff; }
-  .login-form select option { color: #2C3E50; }
-  .login-form input::placeholder { color: rgba(255,255,255,0.5); }
-  .login-form input:focus, .login-form select:focus { outline: none; border-color: #fff; background: rgba(255,255,255,0.2); }
-  .login-btn { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; border: none; border-radius: 10px; background: #fff; color: #2C3E50; cursor: pointer; margin-top: 8px; }
+  .login-form label { display: block; font-size: 13px; color: var(--text-sub); margin-bottom: 6px; }
+  .login-form select, .login-form input { width: 100%; padding: 14px; font-size: 16px; border: 2px solid var(--border); border-radius: 10px; background: var(--bg-input); color: var(--text-main); }
+  .login-form select option { background: var(--bg-card); color: var(--text-main); }
+  .login-form input::placeholder { color: var(--text-faint); }
+  .login-form input:focus, .login-form select:focus { outline: none; border-color: var(--primary-light); background: var(--bg-card); }
+  .login-btn { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; border: none; border-radius: 10px; background: var(--primary); color: #fff; cursor: pointer; margin-top: 8px; }
+  .login-btn:hover { background: var(--primary-hover); }
   .login-btn:disabled { opacity: 0.5; }
   .login-error { margin-top: 12px; color: #FFB3B3; font-size: 14px; min-height: 22px; line-height: 1.4; text-align: center; }
 
   /* ===== 主畫面 ===== */
   .container { max-width: 920px; margin: 0 auto; padding: 12px; }
-  .search-bar { padding: 10px 12px; background: #fff; margin-bottom: 8px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: none; }
+  .search-bar { padding: 10px 12px; background: var(--bg-card); margin-bottom: 8px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.3); display: none; border: 1px solid var(--border); }
   .search-bar.active { display: block; }
-  .search-bar input { width: 100%; padding: 10px; font-size: 14px; border: 1px solid #DDE2E5; border-radius: 6px; }
+  .search-bar input { width: 100%; padding: 10px; font-size: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text-main); }
+  .search-bar input::placeholder { color: var(--text-faint); }
+
+  /* ===== 分類 Tabs (v2.2 新增) ===== */
+  .cat-tabs { position: sticky; top: 86px; z-index: 90; display: flex; gap: 6px; padding: 8px 12px; background: var(--bg-main); overflow-x: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 2px 6px rgba(0,0,0,0.4); border-bottom: 1px solid var(--border); }
+  .cat-tabs::-webkit-scrollbar { display: none; }
+  .cat-tab { flex-shrink: 0; padding: 8px 14px; background: var(--bg-card); color: var(--text-sub); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
+  .cat-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .cat-tab .count { display: inline-block; margin-left: 4px; opacity: 0.7; font-size: 11px; }
+
+  /* ===== 物品列表 ===== */
   .category-section { margin-bottom: 14px; }
-  .category-title { font-size: 13px; font-weight: 700; color: #4A6175; padding: 8px 4px; }
-  .item-list { background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-  .item-row { padding: 12px; border-bottom: 1px solid #ECEFF1; }
+  .category-title { font-size: 13px; font-weight: 700; color: var(--text-sub); padding: 10px 4px 8px; display: flex; justify-content: space-between; align-items: center; }
+  .category-title .add-btn { background: var(--primary); color: #fff; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .category-title .add-btn:hover { background: var(--primary-hover); }
+  .item-list { background: var(--bg-card); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--border); }
+  .item-row { padding: 12px; border-bottom: 1px solid var(--border); position: relative; }
   .item-row:last-child { border-bottom: none; }
-  .item-name { font-size: 15px; font-weight: 600; color: #2C3E50; margin-bottom: 6px; display:flex; justify-content:space-between; align-items:center;}
-  .item-name .badge-count { background: #ECEFF1; color: #7F8C8D; font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 500; }
+  .item-name { font-size: 15px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .item-name .name-text { flex: 1; min-width: 0; word-break: break-word; }
+  .item-name .item-id-tag { font-size: 11px; color: var(--text-faint); font-weight: 400; font-family: "Consolas", monospace; background: var(--bg-stat); padding: 1px 6px; border-radius: 4px; flex-shrink: 0; }
+  .item-name .badge-count { background: var(--bg-stat); color: var(--text-sub); font-size: 10px; padding: 1px 6px; border-radius: 8px; font-weight: 500; }
+  .item-name .delete-btn { background: transparent; border: 1px solid var(--danger); color: var(--danger); padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; flex-shrink: 0; }
+  .item-name .delete-btn:hover { background: var(--danger); color: #fff; }
+  .item-meta { font-size: 11px; color: var(--text-faint); margin-bottom: 8px; }
   .item-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; font-size: 11px; margin-bottom: 8px; }
-  .stat { padding: 4px 2px; text-align: center; background: #F4F6F8; border-radius: 4px; }
-  .stat-label { color: #7F8C8D; font-size: 10px; }
-  .stat-value { font-weight: 700; color: #2C3E50; font-size: 13px; }
-  .stat.theoretical { background: #E8F4F8; }
-  .stat.theoretical .stat-value { color: #2980B9; }
-  .stat.physical { background: #F4E8FA; }
-  .stat.physical .stat-value { color: #8E44AD; }
-  .stat.diff { background: #FCF4E8; }
-  .stat.diff .stat-value { color: #B07020; }
-  .stat.diff.shortage .stat-value { color: #C0392B; }
-  .stat.diff.surplus .stat-value { color: #229954; }
+  .stat { padding: 5px 2px; text-align: center; background: var(--bg-stat); border-radius: 4px; }
+  .stat-label { color: var(--text-faint); font-size: 10px; line-height: 1.2; }
+  .stat-value { font-weight: 700; color: var(--text-main); font-size: 13px; margin-top: 2px; }
+  .stat.theoretical { background: #1B3142; }
+  .stat.theoretical .stat-value { color: #5DADE2; }
+  .stat.physical { background: #3A2742; }
+  .stat.physical .stat-value { color: #BB8FCE; }
+  .stat.diff { background: #3A2818; }
+  .stat.diff .stat-value { color: #DC9866; }
+  .stat.diff.shortage .stat-value { color: #FF6B6B; }
+  .stat.diff.surplus .stat-value { color: #58D68D; }
+
+  /* ===== 統一按鈕色 (v2.2) ===== */
   .item-actions { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 5px; }
-  .btn-action { padding: 9px 0; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
-  .btn-purchase { background: #27AE60; color: #fff; }
-  .btn-consume { background: #E67E22; color: #fff; }
-  .btn-physical { background: #8E44AD; color: #fff; }
-  .btn-history { background: #34495E; color: #fff; }
-  .btn-action:active { opacity: 0.8; }
+  .btn-action { padding: 9px 0; border: 1px solid var(--primary); background: var(--primary); color: #fff; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .btn-action:hover { background: var(--primary-hover); }
+  .btn-action:active { transform: scale(0.97); }
+  /* 區別按鈕：不再用花俏顏色，僅用左邊細微色條提示功能 */
+  .btn-purchase { border-left: 4px solid #58D68D; }
+  .btn-consume { border-left: 4px solid #F5B041; }
+  .btn-physical { border-left: 4px solid #BB8FCE; }
+  .btn-history { border-left: 4px solid #5DADE2; }
 
   /* ===== 第二層 ===== */
-  .detail-header { background: #fff; padding: 14px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-  .detail-header h2 { margin: 0; font-size: 18px; color: #2C3E50; }
-  .detail-header .meta { color: #7F8C8D; font-size: 13px; margin-top: 4px; }
+  .detail-header { background: var(--bg-card); padding: 14px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--border); }
+  .detail-header h2 { margin: 0; font-size: 18px; color: var(--text-main); }
+  .detail-header .meta { color: var(--text-sub); font-size: 13px; margin-top: 4px; }
   .detail-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: 12px; }
   .detail-summary .stat { padding: 8px 4px; }
   .detail-summary .stat-value { font-size: 16px; }
 
-  .history-section { background: #fff; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-  .history-section h3 { margin: 0 0 10px; font-size: 15px; color: #4A6175; display:flex; justify-content:space-between; align-items:center; }
-  .history-section h3 .count { background: #ECEFF1; color: #7F8C8D; font-size: 11px; padding: 2px 8px; border-radius: 8px; font-weight: 500;}
-  .activity-row { display: grid; grid-template-columns: 110px 60px 1fr 80px; gap: 8px; padding: 8px 0; border-bottom: 1px dashed #ECEFF1; font-size: 12px; align-items: center; }
+  .history-section { background: var(--bg-card); border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--border); }
+  .history-section h3 { margin: 0 0 10px; font-size: 15px; color: var(--text-sub); display: flex; justify-content: space-between; align-items: center; }
+  .history-section h3 .count { background: var(--bg-stat); color: var(--text-sub); font-size: 11px; padding: 2px 8px; border-radius: 8px; font-weight: 500; }
+  .activity-row { display: grid; grid-template-columns: 110px 60px 1fr 80px; gap: 8px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 12px; align-items: center; }
   .activity-row:last-child { border-bottom: none; }
-  .activity-time { color: #7F8C8D; font-size: 11px; }
+  .activity-time { color: var(--text-faint); font-size: 11px; }
   .activity-type { padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; text-align: center; }
-  .activity-type.進貨 { background: #D5F5E3; color: #1E8449; }
-  .activity-type.消耗 { background: #FAE5D3; color: #BA4A00; }
-  .activity-type.實際盤點 { background: #EBDEF0; color: #6C3483; }
-  .activity-op { font-size: 11px; color: #7F8C8D; line-height: 1.3; }
+  .activity-type.進貨 { background: #1A3326; color: #58D68D; }
+  .activity-type.消耗 { background: #3A2818; color: #F5B041; }
+  .activity-type.實際盤點 { background: #3A2742; color: #BB8FCE; }
+  .activity-op { font-size: 11px; color: var(--text-sub); line-height: 1.3; }
   .activity-qty { text-align: right; font-weight: 700; }
-  .activity-qty.進貨 { color: #27AE60; }
-  .activity-qty.消耗 { color: #E67E22; }
-  .activity-qty.實際盤點 { color: #8E44AD; }
-  .history-empty { color: #95A5A6; text-align: center; padding: 16px; font-size: 13px; }
+  .activity-qty.進貨 { color: #58D68D; }
+  .activity-qty.消耗 { color: #F5B041; }
+  .activity-qty.實際盤點 { color: #BB8FCE; }
+  .history-empty { color: var(--text-faint); text-align: center; padding: 16px; font-size: 13px; }
 
-  .form-section { background: #fff; border-radius: 12px; padding: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
-  .form-section h3 { margin: 0 0 12px; font-size: 15px; color: #4A6175; }
+  .form-section { background: var(--bg-card); border-radius: 12px; padding: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--border); }
+  .form-section h3 { margin: 0 0 12px; font-size: 15px; color: var(--text-sub); }
   .form-row { margin-bottom: 12px; }
-  .form-row label { display: block; font-size: 13px; color: #7F8C8D; margin-bottom: 4px; }
-  .form-row input { width: 100%; padding: 12px; font-size: 16px; border: 1px solid #DDE2E5; border-radius: 6px; }
-  .form-row input:focus { outline: none; border-color: #2C3E50; }
-  .form-helper { font-size: 12px; color: #7F8C8D; margin-top: 4px; }
-  .btn-submit { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; color: #fff; }
-  .btn-submit-purchase { background: #27AE60; }
-  .btn-submit-consume { background: #E67E22; }
-  .btn-submit-physical { background: #8E44AD; }
+  .form-row label { display: block; font-size: 13px; color: var(--text-sub); margin-bottom: 4px; }
+  .form-row input, .form-row select { width: 100%; padding: 12px; font-size: 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text-main); }
+  .form-row select option { background: var(--bg-card); color: var(--text-main); }
+  .form-row input:focus, .form-row select:focus { outline: none; border-color: var(--primary-light); }
+  .form-helper { font-size: 12px; color: var(--text-faint); margin-top: 4px; }
+  .btn-submit { width: 100%; padding: 14px; font-size: 16px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; color: #fff; background: var(--primary); }
+  .btn-submit:hover { background: var(--primary-hover); }
   .btn-submit:disabled { opacity: 0.5; }
 
-  /* ===== Admin 人員管理頁 ===== */
-  .user-card { background: #fff; padding: 14px; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.06); display:flex; justify-content:space-between; align-items:center;}
-  .user-info .name { font-weight: 700; color: #2C3E50; }
-  .user-info .role { font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-left: 6px;}
-  .user-info .role.admin { background: #F39C12; color:#fff;}
-  .user-info .role.staff { background: #95A5A6; color:#fff;}
-  .user-info .meta { font-size: 12px; color: #7F8C8D; margin-top: 4px;}
-  .user-info .locked-tag { display:inline-block; background: #C0392B; color:#fff; padding:1px 6px; border-radius:4px; font-size:11px; font-weight:600; margin-top:4px;}
-  .user-card .btn-unlock { background: #27AE60; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+  /* ===== Admin 人員管理 ===== */
+  .user-card { background: var(--bg-card); padding: 14px; border-radius: 10px; margin-bottom: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .user-info .name { font-weight: 700; color: var(--text-main); }
+  .user-info .role { font-size: 11px; padding: 1px 6px; border-radius: 6px; margin-left: 6px; }
+  .user-info .role.admin { background: var(--admin); color: #fff; }
+  .user-info .role.staff { background: var(--text-faint); color: #fff; }
+  .user-info .meta { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+  .user-info .locked-tag { display: inline-block; background: var(--danger); color: #fff; padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-top: 4px; }
+  .user-card .btn-unlock { background: var(--primary); color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+
+  /* ===== Modal (v2.2 新增物品用) ===== */
+  .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 9000; padding: 16px; }
+  .modal-overlay.hidden { display: none; }
+  .modal-box { background: var(--bg-card); border-radius: 12px; padding: 20px; width: 100%; max-width: 420px; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); box-shadow: 0 16px 48px rgba(0,0,0,0.6); }
+  .modal-box h3 { margin: 0 0 16px; color: var(--text-main); font-size: 18px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+  .modal-actions button { flex: 1; padding: 12px; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; border: none; }
+  .modal-actions .btn-cancel { background: var(--bg-stat); color: var(--text-sub); }
+  .modal-actions .btn-confirm { background: var(--primary); color: #fff; }
 
   /* ===== Loading & Toast ===== */
-  .loading { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+  .loading { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
   .loading.hidden { display: none; }
-  .spinner { width: 40px; height: 40px; border: 4px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  .spinner { width: 40px; height: 40px; border: 4px solid var(--primary-light); border-top-color: transparent; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #2C3E50; color: #fff; padding: 10px 20px; border-radius: 24px; font-size: 14px; z-index: 10000; opacity: 0; transition: opacity 0.3s; max-width: 90%;}
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--bg-card); color: var(--text-main); padding: 10px 20px; border-radius: 24px; font-size: 14px; z-index: 10000; opacity: 0; transition: opacity 0.3s; max-width: 90%; border: 1px solid var(--border); box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
   .toast.show { opacity: 1; }
-  .toast.success { background: #27AE60; }
-  .toast.error { background: #C0392B; }
+  .toast.success { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .toast.error { background: var(--danger); border-color: var(--danger); color: #fff; }
 
   @media (min-width: 768px) {
     .item-stats { grid-template-columns: repeat(6, 1fr); }
@@ -184,15 +236,54 @@
     <div class="actions">
       <select id="monthSelect" onchange="onMonthChange()"></select>
       <button onclick="toggleSearch()">🔍 搜尋</button>
+      <button class="btn-add-item" onclick="openAddItemModal()">+ 新增物品</button>
       <button id="adminBtn" class="btn-admin" onclick="openUserAdmin()" style="display:none;">👤 人員管理</button>
       <button onclick="logout()">登出</button>
     </div>
   </div>
+  <!-- 分類 Tabs (v2.2) -->
+  <div class="cat-tabs" id="catTabs"></div>
   <div class="container">
     <div class="search-bar" id="searchBar">
-      <input id="searchInput" type="text" placeholder="輸入品項關鍵字..." oninput="renderInventory()">
+      <input id="searchInput" type="text" placeholder="輸入品項或料號(ITM001)搜尋..." oninput="renderInventory()">
     </div>
     <div id="inventoryList"></div>
+  </div>
+</div>
+
+<!-- ============ 新增物品 Modal (v2.2) ============ -->
+<div id="addItemModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>+ 新增物品</h3>
+    <div class="form-row">
+      <label>分類</label>
+      <select id="newItemCategory">
+        <option value="包材備品">包材備品</option>
+        <option value="清潔用品">清潔用品</option>
+        <option value="食材">食材</option>
+        <option value="副食材">副食材</option>
+        <option value="酒水&amp;飲品類">酒水&amp;飲品類</option>
+        <option value="甜點">甜點</option>
+        <option value="果汁及飲料">果汁及飲料</option>
+      </select>
+    </div>
+    <div class="form-row">
+      <label>品項名稱</label>
+      <input id="newItemName" type="text" placeholder="例如：餐巾紙/48包">
+    </div>
+    <div class="form-row">
+      <label>單位</label>
+      <input id="newItemUnit" type="text" placeholder="例如：箱、個、瓶、ml">
+    </div>
+    <div class="form-row">
+      <label>月初數量（選填，沒填預設 0）</label>
+      <input id="newItemOpenQty" type="number" inputmode="decimal" placeholder="0" min="0">
+      <div class="form-helper">本物品於 <span id="newItemMonth">當月</span> 的初始庫存量</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddItemModal()">取消</button>
+      <button class="btn-confirm" onclick="submitAddItem()">確定新增</button>
+    </div>
   </div>
 </div>
 
@@ -282,7 +373,8 @@ let APP = {
   monthList: [],
   inventory: [],
   currentItem: null,
-  formMode: ''
+  formMode: '',
+  activeCategory: 'ALL'  // v2.2 分類 Tabs 狀態
 };
 
 // ============= 共用工具 =============
@@ -400,6 +492,7 @@ async function initApp() {
 async function loadInventory() {
   const data = await api('getInventory', { month: APP.currentMonth });
   APP.inventory = data.items;
+  renderCategoryTabs();
   renderInventory();
 }
 
@@ -416,12 +509,46 @@ function toggleSearch() {
 }
 
 // ============= 主畫面渲染 =============
+function renderCategoryTabs() {
+  const counts = {};
+  APP.inventory.forEach(it => {
+    const c = it.category || '其他';
+    counts[c] = (counts[c] || 0) + 1;
+  });
+  const catOrder = ['包材備品','清潔用品','食材','副食材','酒水&飲品類','甜點','果汁及飲料'];
+  const cats = catOrder.filter(c => counts[c]).concat(Object.keys(counts).filter(c => !catOrder.includes(c)));
+
+  const total = APP.inventory.length;
+  const tabsHtml = [`<button class="cat-tab ${APP.activeCategory === 'ALL' ? 'active' : ''}" onclick="switchCategory('ALL')">全部 <span class="count">(${total})</span></button>`]
+    .concat(cats.map(c => `<button class="cat-tab ${APP.activeCategory === c ? 'active' : ''}" onclick="switchCategory(${JSON.stringify(c)})">${escapeHtml(c)} <span class="count">(${counts[c]})</span></button>`));
+  document.getElementById('catTabs').innerHTML = tabsHtml.join('');
+}
+
+function switchCategory(cat) {
+  APP.activeCategory = cat;
+  renderCategoryTabs();
+  renderInventory();
+}
+
 function renderInventory() {
   const kw = (document.getElementById('searchInput').value || '').toLowerCase().trim();
   const list = document.getElementById('inventoryList');
+  const filtered = APP.inventory.filter(it => {
+    // 分類過濾
+    if (APP.activeCategory && APP.activeCategory !== 'ALL') {
+      if ((it.category || '其他') !== APP.activeCategory) return false;
+    }
+    // 關鍵字搜尋（含料號）
+    if (kw) {
+      const haystack = [(it.name||''), (it.category||''), (it.item_id||'')].join(' ').toLowerCase();
+      if (!haystack.includes(kw)) return false;
+    }
+    return true;
+  });
+
+  // 依分類分組（搜尋無分類時）
   const byCat = {};
-  APP.inventory.forEach(it => {
-    if (kw && !(it.name || '').toLowerCase().includes(kw) && !(it.category || '').toLowerCase().includes(kw)) return;
+  filtered.forEach(it => {
     const cat = it.category || '其他';
     if (!byCat[cat]) byCat[cat] = [];
     byCat[cat].push(it);
@@ -432,13 +559,15 @@ function renderInventory() {
   list.innerHTML = sortedCats.map(cat => {
     const rows = byCat[cat].map(it => itemRowHtml(it)).join('');
     return `<div class="category-section">
-      <div class="category-title">${escapeHtml(cat)} <span style="font-weight:400;color:#95A5A6;">(${byCat[cat].length})</span></div>
+      <div class="category-title">
+        <span>${escapeHtml(cat)} <span style="font-weight:400;color:var(--text-faint);">(${byCat[cat].length})</span></span>
+      </div>
       <div class="item-list">${rows}</div>
     </div>`;
   }).join('');
 
   if (!sortedCats.length) {
-    list.innerHTML = '<div style="text-align:center;color:#95A5A6;padding:32px;">查無符合的物料</div>';
+    list.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:32px;">查無符合的物料</div>';
   }
 }
 
@@ -453,25 +582,33 @@ function itemRowHtml(it) {
   }
   const physicalCountBadge = it.physical_count > 0 ? `<span class="badge-count">已盤${it.physical_count}次</span>` : '';
 
+  const isAdmin = APP.user && APP.user.isAdmin;
+  const deleteBtn = isAdmin
+    ? `<button class="delete-btn" onclick='confirmDeleteItem("${it.item_id}","${escapeHtml(it.name).replace(/'/g,"&#39;")}")'>🗑 刪除</button>`
+    : '';
+
   return `
     <div class="item-row">
       <div class="item-name">
-        <span>${escapeHtml(it.name)} <span style="color:#95A5A6;font-weight:400;font-size:12px;">${it.unit ? '('+it.unit+')' : ''}</span></span>
-        ${physicalCountBadge}
+        <span class="name-text">${escapeHtml(it.name)}</span>
+        <span class="item-id-tag">${it.item_id}</span>
+      </div>
+      <div class="item-meta">
+        ${escapeHtml(it.unit ? '單位：' + it.unit : '')} ${physicalCountBadge} ${deleteBtn}
       </div>
       <div class="item-stats">
         <div class="stat"><div class="stat-label">月初</div><div class="stat-value">${it.open_qty}</div></div>
-        <div class="stat"><div class="stat-label">進貨</div><div class="stat-value" style="color:#27AE60;">+${it.purchase_qty}</div></div>
-        <div class="stat"><div class="stat-label">消耗</div><div class="stat-value" style="color:#E67E22;">-${it.consume_qty}</div></div>
-        <div class="stat theoretical"><div class="stat-label">理論值</div><div class="stat-value">${it.theoretical_qty}</div></div>
-        <div class="stat physical"><div class="stat-label">實際值</div><div class="stat-value">${phyDisplay}</div></div>
-        <div class="stat diff ${diffClass}"><div class="stat-label">差異</div><div class="stat-value">${diffDisplay}</div></div>
+        <div class="stat"><div class="stat-label">進貨</div><div class="stat-value" style="color:#58D68D;">+${it.purchase_qty}</div></div>
+        <div class="stat"><div class="stat-label">消耗</div><div class="stat-value" style="color:#F5B041;">-${it.consume_qty}</div></div>
+        <div class="stat theoretical"><div class="stat-label">存量<br>理論值</div><div class="stat-value">${it.theoretical_qty}</div></div>
+        <div class="stat physical"><div class="stat-label">存量<br>實際值</div><div class="stat-value">${phyDisplay}</div></div>
+        <div class="stat diff ${diffClass}"><div class="stat-label">理論/實際<br>差異值</div><div class="stat-value">${diffDisplay}</div></div>
       </div>
       <div class="item-actions">
         <button class="btn-action btn-purchase" onclick='openDetail("${it.item_id}","purchase")'>進貨</button>
         <button class="btn-action btn-consume" onclick='openDetail("${it.item_id}","consume")'>消耗</button>
-        <button class="btn-action btn-physical" onclick='openDetail("${it.item_id}","physical")'>盤點</button>
-        <button class="btn-action btn-history" onclick='openDetail("${it.item_id}","history")'>歷程</button>
+        <button class="btn-action btn-physical" onclick='openDetail("${it.item_id}","physical")'>存量</button>
+        <button class="btn-action btn-history" onclick='openDetail("${it.item_id}","history")'>修改歷程</button>
       </div>
     </div>`;
 }
@@ -606,6 +743,67 @@ function backToMain() {
   window.scrollTo(0, 0);
 }
 
+// ============= 新增/刪除物品 (v2.2) =============
+function openAddItemModal() {
+  document.getElementById('newItemName').value = '';
+  document.getElementById('newItemUnit').value = '';
+  document.getElementById('newItemOpenQty').value = '';
+  document.getElementById('newItemMonth').textContent = APP.currentMonth || '當月';
+  document.getElementById('addItemModal').classList.remove('hidden');
+}
+
+function closeAddItemModal() {
+  document.getElementById('addItemModal').classList.add('hidden');
+}
+
+async function submitAddItem() {
+  const category = document.getElementById('newItemCategory').value;
+  const name = document.getElementById('newItemName').value.trim();
+  const unit = document.getElementById('newItemUnit').value.trim();
+  const openQty = document.getElementById('newItemOpenQty').value;
+
+  if (!name) { toast('請輸入品項名稱', 'error'); return; }
+  if (!unit) { toast('請輸入單位', 'error'); return; }
+
+  const dup = APP.inventory.find(it => it.name === name && it.category === category);
+  if (dup) {
+    if (!confirm(`「${name}」在「${category}」分類中已存在 (料號 ${dup.item_id})，仍要新增嗎？`)) return;
+  }
+
+  try {
+    const res = await api('addItem', {
+      category, name, unit,
+      open_qty: openQty === '' ? 0 : Number(openQty),
+      month: APP.currentMonth,
+      operator: APP.user.username
+    }, 'POST');
+    toast(`新增成功：${res.item_id} ${res.name}`, 'success');
+    closeAddItemModal();
+    await loadInventory();
+  } catch (e) {
+    toast('新增失敗：' + e.message, 'error');
+  }
+}
+
+async function confirmDeleteItem(itemId, itemName) {
+  if (!APP.user || !APP.user.isAdmin) {
+    toast('僅管理員可刪除物品', 'error');
+    return;
+  }
+  const confirmText = `確定刪除以下物品？\n\n料號：${itemId}\n品項：${itemName}\n\n注意：此為「軟刪除」，物品從清單隱藏但歷史交易紀錄仍保留。`;
+  if (!confirm(confirmText)) return;
+  try {
+    await api('deleteItem', {
+      adminUser: APP.user.username,
+      item_id: itemId
+    }, 'POST');
+    toast(`已刪除：${itemName}`, 'success');
+    await loadInventory();
+  } catch (e) {
+    toast('刪除失敗：' + e.message, 'error');
+  }
+}
+
 // ============= Admin 人員管理 =============
 async function openUserAdmin() {
   document.getElementById('mainScreen').style.display = 'none';
@@ -624,12 +822,12 @@ async function loadUserAdmin() {
         <div class="user-info">
           <span class="name">${escapeHtml(u.username)}</span>
           <span class="role ${u.role}">${u.role}</span>
-          ${isMe ? '<span style="color:#95A5A6;font-size:11px;margin-left:6px;">(你自己)</span>' : ''}
+          ${isMe ? '<span style="color:var(--text-faint);font-size:11px;margin-left:6px;">(你自己)</span>' : ''}
           <div class="meta">失敗次數：${u.fail_count} 次</div>
           ${isLocked ? '<div class="locked-tag">🔒 已鎖定</div>' : ''}
         </div>
         ${(isLocked && !isMe) ? `<button class="btn-unlock" onclick='doUnlock("${escapeHtml(u.username)}")'>解鎖</button>` : ''}
-        ${(!isLocked && !isMe) ? `<button class="btn-unlock" style="background:#7F8C8D;" onclick='doResetPassword("${escapeHtml(u.username)}")'>重設密碼</button>` : ''}
+        ${(!isLocked && !isMe) ? `<button class="btn-unlock" style="background:var(--text-faint);" onclick='doResetPassword("${escapeHtml(u.username)}")'>重設密碼</button>` : ''}
       </div>`;
   }).join('');
 }

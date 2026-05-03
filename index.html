@@ -284,7 +284,15 @@
     </div>
     <div class="form-row">
       <label>單位</label>
-      <input id="newItemUnit" type="text" placeholder="例如：箱、個、瓶、ml">
+      <select id="newItemUnitSelect" onchange="onUnitSelectChange()">
+        <option value="ml">ml</option>
+        <option value="桶">桶</option>
+        <option value="瓶">瓶</option>
+        <option value="個">個</option>
+        <option value="箱">箱</option>
+        <option value="__custom__">其他單位（手動輸入）</option>
+      </select>
+      <input id="newItemUnit" type="text" placeholder="請輸入自訂單位" style="margin-top:6px;display:none;">
     </div>
     <div class="form-row">
       <label>月初數量（選填，沒填預設 0）</label>
@@ -918,9 +926,23 @@ function backToMain() {
 function openAddItemModal() {
   document.getElementById('newItemName').value = '';
   document.getElementById('newItemUnit').value = '';
+  document.getElementById('newItemUnitSelect').value = 'ml';
+  document.getElementById('newItemUnit').style.display = 'none';
   document.getElementById('newItemOpenQty').value = '';
   document.getElementById('newItemMonth').textContent = APP.currentMonth || '當月';
   document.getElementById('addItemModal').classList.remove('hidden');
+}
+
+function onUnitSelectChange() {
+  const sel = document.getElementById('newItemUnitSelect');
+  const inp = document.getElementById('newItemUnit');
+  if (sel.value === '__custom__') {
+    inp.style.display = '';
+    inp.value = '';
+    inp.focus();
+  } else {
+    inp.style.display = 'none';
+  }
 }
 
 function closeAddItemModal() {
@@ -930,11 +952,15 @@ function closeAddItemModal() {
 async function submitAddItem() {
   const category = document.getElementById('newItemCategory').value;
   const name = document.getElementById('newItemName').value.trim();
-  const unit = document.getElementById('newItemUnit').value.trim();
+  // v2.6: 從下拉選單取單位，若選「其他」則取自訂輸入框
+  const unitSel = document.getElementById('newItemUnitSelect').value;
+  const unit = (unitSel === '__custom__')
+    ? document.getElementById('newItemUnit').value.trim()
+    : unitSel;
   const openQty = document.getElementById('newItemOpenQty').value;
 
   if (!name) { toast('請輸入品項名稱', 'error'); return; }
-  if (!unit) { toast('請輸入單位', 'error'); return; }
+  if (!unit) { toast('請輸入單位（選其他時請手動填入）', 'error'); return; }
 
   const dup = APP.inventory.find(it => it.name === name && it.category === category);
   if (dup) {

@@ -450,6 +450,19 @@ function todayStr() {
   const d = new Date();
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
+// v2.4-⑤: 根據主畫面所選月份回傳合理的預設日期
+function defaultDateForMonth() {
+  const m = APP.currentMonth || '';
+  if (!m || !/^\d{4}-\d{2}$/.test(m)) return todayStr();
+  const today = todayStr();
+  const todayMonth = today.substring(0, 7);
+  if (m === todayMonth) return today;  // 主畫面月=今天月，預設今天
+  // 主畫面選的是過去/未來月，預設該月最後一天(讓資料落入該月)
+  const [yy, mm] = m.split('-').map(Number);
+  // 計算該月最後一天
+  const lastDay = new Date(yy, mm, 0).getDate();
+  return `${yy}-${String(mm).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+}
 function escapeHtml(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -523,6 +536,7 @@ function logout() {
 }
 
 // ============= 初始化 =============
+// v2.5: 一次性初始化（合併 API + sessionStorage 快取）
 async function initApp() {
   document.getElementById('loginScreen').style.display = 'none';
   document.getElementById('mainScreen').style.display = 'block';
@@ -536,23 +550,52 @@ async function initApp() {
     document.getElementById('adminLoggedUser').textContent = APP.user.username;
   }
 
-  const settings = await api('getSettings');
-  document.getElementById('storeName').textContent = settings.STORE_NAME || 'Feeling Bar';
-  APP.currentMonth = settings.CURRENT_MONTH;
+  // v2.5: 先用 sessionStorage 快取秒開
+  const cached = sessionStorage.getItem('init_data');
+  if (cached) {
+    try {
+      const data = JSON.parse(cached);
+      applyInitData(data);
+    } catch (e) { console.warn('cache parse fail', e); }
+  }
 
-  const months = await api('getMonthList');
-  APP.monthList = months;
+  // 背景拉最新資料更新（合併 API：getInitData）
+  try {
+    const data = await api('getInitData', { month: APP.currentMonth || '' });
+    sessionStorage.setItem('init_data', JSON.stringify(data));
+    applyInitData(data);
+  } catch (e) {
+    if (!cached) toast('無法連線後台：' + e.message, 'error');
+  }
+}
+
+function applyInitData(data) {
+  if (!data) return;
+  document.getElementById('storeName').textContent = data.settings.STORE_NAME || 'Feeling Bar';
+  if (!APP.currentMonth) APP.currentMonth = data.settings.CURRENT_MONTH;
+
+  APP.monthList = data.months || [];
   const sel = document.getElementById('monthSelect');
-  sel.innerHTML = months.map(m => `<option value="${m}">${m}</option>`).join('');
-  if (APP.currentMonth && months.includes(APP.currentMonth)) sel.value = APP.currentMonth;
-  else APP.currentMonth = sel.value;
+  sel.innerHTML = APP.monthList.map(m => `<option value="${m}">${m}</option>`).join('');
+  if (APP.currentMonth && APP.monthList.includes(APP.currentMonth)) sel.value = APP.currentMonth;
+  else if (APP.monthList.length) APP.currentMonth = sel.value;
 
-  await loadInventory();
+  if (data.inventory && data.inventory.items) {
+    APP.inventory = data.inventory.items;
+    renderCategoryTabs();
+    renderInventory();
+  }
 }
 
 async function loadInventory() {
   const data = await api('getInventory', { month: APP.currentMonth });
   APP.inventory = data.items;
+  // 同步更新快取
+  try {
+    const cached = JSON.parse(sessionStorage.getItem('init_data') || '{}');
+    cached.inventory = data;
+    sessionStorage.setItem('init_data', JSON.stringify(cached));
+  } catch (e) {}
   renderCategoryTabs();
   renderInventory();
 }
@@ -724,7 +767,7 @@ async function openDetail(itemId, mode) {
     return;
   }
   formSection.style.display = 'block';
-  document.getElementById('formDate').value = todayStr();
+  document.getElementById('formDate').value = defaultDateForMonth();
   document.getElementById('formQty').value = '';
   document.getElementById('formNote').value = '';
   document.getElementById('formQtyHelper').textContent = '';
@@ -775,7 +818,7 @@ function setupSafetySection(it) {
 
 // v2.4: 月中小型盤點區塊設定
 async function setupMiniSection(it) {
-  document.getElementById('miniFormDate').value = todayStr();
+  document.getElementById('miniFormDate').value = defaultDateForMonth();
   document.getElementById('miniFormQty').value = '';
   document.getElementById('miniFormNote').value = '';
   document.getElementById('miniFormQtyLabel').textContent = `目前實際數量 (${it.unit || ''})`;
@@ -1041,9 +1084,7 @@ async function loadUserAdmin() {
 async function doUnlock(targetUser) {
   if (!confirm(`確定要解鎖「${targetUser}」？`)) return;
   try {
-    await api('unlockUser', {
-      adminUser: APP.user.username, targetUser, newPassword: ''
-    }, 'POST');
+    await api('unlockUser', { adminUser: APP.user.username, targetUser, newPassword: '' }, 'POST');
     toast(`${targetUser} 已解鎖`, 'success');
     loadUserAdmin();
   } catch (e) {
@@ -1059,9 +1100,7 @@ async function doResetPassword(targetUser) {
     return;
   }
   try {
-    await api('unlockUser', {
-      adminUser: APP.user.username, targetUser, newPassword: newPwd
-    }, 'POST');
+    await api('unlockUser', { adminUser: APP.user.username, targetUser, newPassword: newPwd }, 'POST');
     toast(`${targetUser} 密碼已重設為 ${newPwd}`, 'success');
     loadUserAdmin();
   } catch (e) {

@@ -157,11 +157,13 @@
   .activity-type.進貨 { background: #1A3326; color: #58D68D; }
   .activity-type.消耗 { background: #3A2818; color: #F5B041; }
   .activity-type.實際盤點 { background: #3A2742; color: #BB8FCE; }
+  .activity-type.小型盤點 { background: #1F3F5C; color: #7CC0F5; }
   .activity-op { font-size: 11px; color: var(--text-sub); line-height: 1.3; }
   .activity-qty { text-align: right; font-weight: 700; }
   .activity-qty.進貨 { color: #58D68D; }
   .activity-qty.消耗 { color: #F5B041; }
   .activity-qty.實際盤點 { color: #BB8FCE; }
+  .activity-qty.小型盤點 { color: #7CC0F5; }
   .history-empty { color: var(--text-faint); text-align: center; padding: 16px; font-size: 13px; }
 
   .form-section { background: var(--bg-card); border-radius: 12px; padding: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); border: 1px solid var(--border); }
@@ -316,7 +318,7 @@
       </div>
     </div>
     <div class="actions">
-      <button onclick="backToMain()">← 返回存量表</button>
+      <button onclick="backToMain()">← 返回進耗存表首頁</button>
     </div>
   </div>
   <div class="container">
@@ -414,7 +416,7 @@
       <div class="who"><span class="username" id="adminLoggedUser">-</span><span class="badge-admin">admin</span></div>
     </div>
     <div class="actions">
-      <button onclick="backToMain()">← 返回存量表</button>
+      <button onclick="backToMain()">← 返回進耗存表首頁</button>
       <button onclick="loadUserAdmin()">🔄 重新整理</button>
     </div>
   </div>
@@ -743,6 +745,8 @@ function itemRowHtml(it) {
 
 // ============= 第二層 =============
 async function openDetail(itemId, mode) {
+  // v2.7: 記住主畫面 scroll 位置，返回時還原
+  APP._mainScrollY = window.scrollY || document.documentElement.scrollTop || 0;
   APP.currentItem = APP.inventory.find(i => i.item_id === itemId);
   APP.formMode = mode;
   if (!APP.currentItem) { toast('找不到物料', 'error'); return; }
@@ -919,7 +923,10 @@ function backToMain() {
   document.getElementById('mainScreen').style.display = 'block';
   APP.currentItem = null;
   APP.formMode = '';
-  window.scrollTo(0, 0);
+  // v2.7: 還原進入第二層前的主畫面捲動位置
+  const savedY = APP._mainScrollY || 0;
+  window.scrollTo(0, savedY);
+  setTimeout(() => window.scrollTo(0, savedY), 30);  // 雙重保險（畫面 reflow 後再次校正）
 }
 
 // ============= 新增/刪除物品 (v2.2) =============

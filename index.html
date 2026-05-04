@@ -477,8 +477,9 @@ function escapeHtml(s) {
   return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
-async function api(action, params={}, method='GET') {
-  showLoading(true);
+// v2.8.1: 加 silent 參數，背景送 API 不顯示 loading 圓圈
+async function api(action, params={}, method='GET', silent=false) {
+  if (!silent) showLoading(true);
   try {
     let res;
     if (method === 'POST') {
@@ -491,7 +492,7 @@ async function api(action, params={}, method='GET') {
     if (!j.ok) throw new Error(j.error || 'API錯誤');
     return j.data;
   } finally {
-    showLoading(false);
+    if (!silent) showLoading(false);
   }
 }
 
@@ -597,8 +598,8 @@ function applyInitData(data) {
   }
 }
 
-async function loadInventory() {
-  const data = await api('getInventory', { month: APP.currentMonth });
+async function loadInventory(silent) {
+  const data = await api('getInventory', { month: APP.currentMonth }, 'GET', silent);
   APP.inventory = data.items;
   // 同步更新快取
   try {
@@ -930,9 +931,9 @@ async function submitForm() {
       endpoint = 'addPhysicalCount';
       params = { item_id: it.item_id, month: String(date).substring(0, 7), qty: numQty, counter: APP.user.username, note };
     }
-    await api(endpoint, params, 'POST');
-    // 4. 成功後背景拉新資料校正（不阻塞）
-    loadInventory().catch(() => {});
+    await api(endpoint, params, 'POST', true);  // v2.8.1 silent
+    // 4. 成功後背景拉新資料校正（不阻塞，靜默）
+    loadInventory(true).catch(() => {});
   } catch (e) {
     // 5. 失敗 → rollback 樂觀更新
     Object.assign(it, oldState);
@@ -1078,9 +1079,9 @@ async function submitMiniCount() {
       qty: numQty,
       counter: APP.user.username,
       note
-    }, 'POST');
-    // 成功 → 背景同步主畫面 inventory
-    loadInventory().catch(() => {});
+    }, 'POST', true);  // v2.8.1 silent
+    // 成功 → 背景同步主畫面 inventory（靜默）
+    loadInventory(true).catch(() => {});
   } catch (e) {
     // 失敗 → rollback
     Object.assign(it, oldState);

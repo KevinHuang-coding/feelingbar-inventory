@@ -83,8 +83,8 @@
   .search-bar input { width: 100%; padding: 10px; font-size: 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-input); color: var(--text-main); }
   .search-bar input::placeholder { color: var(--text-faint); }
 
-  /* ===== 分類 Tabs (v2.2 新增) ===== */
-  .cat-tabs { position: sticky; top: 86px; z-index: 90; display: flex; gap: 6px; padding: 8px 12px; background: var(--bg-main); overflow-x: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 2px 6px rgba(0,0,0,0.4); border-bottom: 1px solid var(--border); }
+  /* ===== 分類 Tabs (v2.9: 移入 top-bar 內一起 sticky) ===== */
+  .cat-tabs { display: flex; gap: 6px; padding: 8px 0 0; margin-top: 8px; overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .cat-tabs::-webkit-scrollbar { display: none; }
   .cat-tab { flex-shrink: 0; padding: 8px 14px; background: var(--bg-card); color: var(--text-sub); border: 1px solid var(--border); border-radius: 20px; font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: all 0.2s; }
   .cat-tab.active { background: var(--primary); color: #fff; border-color: var(--primary); }
@@ -252,9 +252,9 @@
       <button id="adminBtn" class="btn-admin" onclick="openUserAdmin()" style="display:none;">👤 人員</button>
       <button onclick="logout()">登出</button>
     </div>
+    <!-- v2.9: 分類 Tabs 移入 top-bar 內，整個 top-bar 一起 sticky -->
+    <div class="cat-tabs" id="catTabs"></div>
   </div>
-  <!-- 分類 Tabs (v2.2) -->
-  <div class="cat-tabs" id="catTabs"></div>
   <div class="container">
     <div class="search-bar" id="searchBar">
       <input id="searchInput" type="text" placeholder="輸入品項或料號(ITM001)搜尋..." oninput="renderInventory()">
@@ -571,8 +571,10 @@ async function initApp() {
   }
 
   // 背景拉最新資料更新（合併 API：getInitData）
+  // v2.9: 有快取時 silent；沒快取（首次登入）才顯示 loading 圈
+  const useSilent = !!cached;
   try {
-    const data = await api('getInitData', { month: APP.currentMonth || '' });
+    const data = await api('getInitData', { month: APP.currentMonth || '' }, 'GET', useSilent);
     sessionStorage.setItem('init_data', JSON.stringify(data));
     applyInitData(data);
   } catch (e) {
@@ -766,7 +768,10 @@ async function openDetail(itemId, mode) {
   document.getElementById('sumOut').textContent = '-' + it.consume_qty;
   document.getElementById('sumTheo').textContent = it.theoretical_qty;
 
-  await loadActivityLog();
+  // v2.9: 立刻顯示佔位，背景靜默拉歷程（避免按鈕看似沒反應）
+  document.getElementById('activityCount').textContent = '...';
+  document.getElementById('activityList').innerHTML = '<div class="history-empty">載入歷程中...</div>';
+  loadActivityLog().catch(() => {});
 
   const formSection = document.getElementById('formSection');
   const safetySection = document.getElementById('safetySection');
@@ -841,9 +846,9 @@ async function setupMiniSection(it) {
   } else {
     helper.textContent = '尚未設定安全水位，無警告功能';
   }
-  // 顯示小型盤點歷史摘要
+  // 顯示小型盤點歷史摘要 (v2.9: silent)
   try {
-    const history = await api('getMiniCountHistory', { itemId: it.item_id, month: APP.currentMonth });
+    const history = await api('getMiniCountHistory', { itemId: it.item_id, month: APP.currentMonth }, 'GET', true);
     const summary = document.getElementById('miniHistorySummary');
     if (history.length === 0) {
       summary.textContent = '本月尚無小型盤點紀錄';
@@ -858,7 +863,9 @@ async function setupMiniSection(it) {
 
 async function loadActivityLog() {
   const it = APP.currentItem;
-  const log = await api('getActivityLog', { itemId: it.item_id, month: APP.currentMonth });
+  if (!it) return;
+  // v2.9: silent 模式，不擋畫面
+  const log = await api('getActivityLog', { itemId: it.item_id, month: APP.currentMonth }, 'GET', true);
   document.getElementById('activityCount').textContent = log.length;
   const listEl = document.getElementById('activityList');
   if (!log.length) {

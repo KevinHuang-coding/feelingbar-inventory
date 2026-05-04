@@ -875,6 +875,7 @@ async function loadActivityLog() {
 }
 
 // ============= 表單送出 =============
+// v2.8: 樂觀 UI — 送出當下立刻回主畫面 + 前端模擬更新數值，背景送 API
 async function submitForm() {
   const date = document.getElementById('formDate').value;
   const qty = document.getElementById('formQty').value;
@@ -884,36 +885,59 @@ async function submitForm() {
 
   const btn = document.getElementById('formSubmit');
   btn.disabled = true;
+  const it = APP.currentItem;
+  const mode = APP.formMode;
+  const numQty = Number(qty);
+
+  // 1. 樂觀 UI：前端立刻 mutate 對應物品數值（先存舊值供 rollback）
+  const oldState = {
+    purchase_qty: it.purchase_qty,
+    consume_qty: it.consume_qty,
+    theoretical_qty: it.theoretical_qty,
+    physical_qty: it.physical_qty,
+    diff: it.diff,
+    physical_count: it.physical_count
+  };
+  if (mode === 'purchase') {
+    it.purchase_qty = (it.purchase_qty || 0) + numQty;
+    it.theoretical_qty = (it.open_qty || 0) + it.purchase_qty - (it.consume_qty || 0);
+  } else if (mode === 'consume') {
+    it.consume_qty = (it.consume_qty || 0) + numQty;
+    it.theoretical_qty = (it.open_qty || 0) + (it.purchase_qty || 0) - it.consume_qty;
+  } else if (mode === 'physical') {
+    it.physical_qty = numQty;
+    it.diff = numQty - (it.theoretical_qty || 0);
+    it.physical_count = (it.physical_count || 0) + 1;
+  }
+
+  // 2. 立刻 toast + backToMain + 重畫主畫面（使用者感覺「秒回」）
+  const labels = { purchase: '進貨', consume: '消耗', physical: '月底實際盤點' };
+  toast(`${labels[mode]} ${it.name} ${numQty} 已送出，背景同步中...`, 'success');
+  backToMain();
+  renderInventory();
+  btn.disabled = false;
+
+  // 3. 背景送 API（fire-and-forget，不阻塞 UI）
   try {
-    if (APP.formMode === 'purchase') {
-      await api('addPurchase', {
-        item_id: APP.currentItem.item_id,
-        purchase_date: date, qty: Number(qty),
-        operator: APP.user.username, note
-      }, 'POST');
-      toast('進貨紀錄新增成功', 'success');
-    } else if (APP.formMode === 'consume') {
-      await api('addConsumption', {
-        item_id: APP.currentItem.item_id,
-        consume_date: date, qty: Number(qty),
-        operator: APP.user.username, note
-      }, 'POST');
-      toast('消耗紀錄新增成功', 'success');
-    } else if (APP.formMode === 'physical') {
-      const month = String(date).substring(0, 7);
-      await api('addPhysicalCount', {
-        item_id: APP.currentItem.item_id,
-        month, qty: Number(qty),
-        counter: APP.user.username, note
-      }, 'POST');
-      toast('實際盤點已記錄', 'success');
+    let endpoint = '', params = {};
+    if (mode === 'purchase') {
+      endpoint = 'addPurchase';
+      params = { item_id: it.item_id, purchase_date: date, qty: numQty, operator: APP.user.username, note };
+    } else if (mode === 'consume') {
+      endpoint = 'addConsumption';
+      params = { item_id: it.item_id, consume_date: date, qty: numQty, operator: APP.user.username, note };
+    } else if (mode === 'physical') {
+      endpoint = 'addPhysicalCount';
+      params = { item_id: it.item_id, month: String(date).substring(0, 7), qty: numQty, counter: APP.user.username, note };
     }
-    await loadInventory();
-    backToMain();
+    await api(endpoint, params, 'POST');
+    // 4. 成功後背景拉新資料校正（不阻塞）
+    loadInventory().catch(() => {});
   } catch (e) {
-    toast('送出失敗：' + e.message, 'error');
-  } finally {
-    btn.disabled = false;
+    // 5. 失敗 → rollback 樂觀更新
+    Object.assign(it, oldState);
+    renderInventory();
+    toast('送出失敗，已復原：' + e.message, 'error');
   }
 }
 
@@ -1012,6 +1036,7 @@ async function confirmDeleteItem(itemId, itemName) {
 }
 
 // ============= v2.4 月中小型盤點 + 安全水位 =============
+// v2.8: 樂觀 UI — 小型盤點立刻反應，不阻塞畫面
 async function submitMiniCount() {
   const date = document.getElementById('miniFormDate').value;
   const qty = document.getElementById('miniFormQty').value;
@@ -1019,33 +1044,49 @@ async function submitMiniCount() {
   if (!date || qty === '' || isNaN(Number(qty))) { toast('請填寫日期與數量', 'error'); return; }
   if (Number(qty) < 0) { toast('數量不可為負', 'error'); return; }
 
+  const it = APP.currentItem;
+  const numQty = Number(qty);
+  const oldState = {
+    mini_latest_qty: it.mini_latest_qty,
+    mini_count: it.mini_count,
+    low_stock: it.low_stock
+  };
+
+  // 1. 樂觀 UI：前端立刻更新該物品的小盤水位
+  it.mini_latest_qty = numQty;
+  it.mini_count = (it.mini_count || 0) + 1;
+  it.low_stock = (it.safety_threshold > 0 && numQty < it.safety_threshold);
+
+  // 2. 立刻給 feedback
+  if (it.low_stock) {
+    alert('⚠️ 警告！\n\n庫存 ' + numQty + ' 低於安全水位 ' + it.safety_threshold + '，請盡快叫料！');
+    toast('已記錄但庫存偏低', 'error');
+  } else {
+    toast('小型盤點 ' + numQty + ' 已送出，背景同步中...', 'success');
+  }
+  // 3. 立刻清空輸入框 + 更新 UI
+  document.getElementById('miniFormQty').value = '';
+  document.getElementById('miniFormNote').value = '';
+  setupSafetySection(it);
+  setupMiniSection(it);
+
+  // 4. 背景送 API
   try {
-    const res = await api('addMiniCount', {
-      item_id: APP.currentItem.item_id,
+    await api('addMiniCount', {
+      item_id: it.item_id,
       month: String(date).substring(0, 7),
-      qty: Number(qty),
+      qty: numQty,
       counter: APP.user.username,
       note
     }, 'POST');
-    if (res.warning) {
-      // 警告：庫存低於安全水位
-      alert('⚠️ 警告！\n\n' + res.message + '\n\n請盡快通知採購進貨。');
-      toast('已記錄但庫存偏低，請盡快叫料！', 'error');
-    } else {
-      toast('小型盤點已記錄', 'success');
-    }
-    await loadInventory();
-    // 重新整理當前 detail 頁面
-    APP.currentItem = APP.inventory.find(i => i.item_id === APP.currentItem.item_id);
-    if (APP.currentItem) {
-      setupSafetySection(APP.currentItem);
-      setupMiniSection(APP.currentItem);
-      // 也清空輸入欄
-      document.getElementById('miniFormQty').value = '';
-      document.getElementById('miniFormNote').value = '';
-    }
+    // 成功 → 背景同步主畫面 inventory
+    loadInventory().catch(() => {});
   } catch (e) {
-    toast('送出失敗：' + e.message, 'error');
+    // 失敗 → rollback
+    Object.assign(it, oldState);
+    setupSafetySection(it);
+    setupMiniSection(it);
+    toast('送出失敗，已復原：' + e.message, 'error');
   }
 }
 

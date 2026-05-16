@@ -851,13 +851,18 @@ async function initApp() {
 function applyInitData(data) {
   if (!data) return;
   document.getElementById('storeName').textContent = data.settings.STORE_NAME || 'Feeling Bar';
-  if (!APP.currentMonth) APP.currentMonth = data.settings.CURRENT_MONTH;
 
-  APP.monthList = data.months || [];
+  // 永遠預設最新月份（排序後取最後一項）
+  APP.monthList = (data.months || []).slice().sort();
+  const latestMonth = APP.monthList.length
+    ? APP.monthList[APP.monthList.length - 1]
+    : (data.settings.CURRENT_MONTH || '');
+  if (!APP.currentMonth || !APP.monthList.includes(APP.currentMonth)) {
+    APP.currentMonth = latestMonth;
+  }
   const sel = document.getElementById('monthSelect');
   sel.innerHTML = APP.monthList.map(m => `<option value="${m}">${m}</option>`).join('');
-  if (APP.currentMonth && APP.monthList.includes(APP.currentMonth)) sel.value = APP.currentMonth;
-  else if (APP.monthList.length) APP.currentMonth = sel.value;
+  sel.value = APP.currentMonth;
 
   if (data.inventory && data.inventory.items) {
     APP.inventory = data.inventory.items;
@@ -1529,19 +1534,21 @@ function loadFinanceData() {
 //  ① 門市營收
 // =============================================================
 
-async function loadRevenueData() {
+async function loadRevenueData(bgSync = false) {
   try {
-    showLoading(true);
+    if (!bgSync) showLoading(true);
     const data = await api('getMonthlyRevenue', { month: FINANCE.currentMonth }, 'GET', true);
     FINANCE.revenueData = data;
     renderRevenueSummary(data);
     renderRevenueList(data);
   } catch (e) {
-    document.getElementById('revenueSummary').innerHTML =
-      `<div class="revenue-summary-card span2" style="text-align:center;color:var(--danger);padding:16px;">無法載入營收資料：${escapeHtml(e.message)}</div>`;
-    document.getElementById('revenueList').innerHTML = '';
+    if (!bgSync) {
+      document.getElementById('revenueSummary').innerHTML =
+        `<div class="revenue-summary-card span2" style="text-align:center;color:var(--danger);padding:16px;">無法載入營收資料：${escapeHtml(e.message)}</div>`;
+      document.getElementById('revenueList').innerHTML = '';
+    }
   } finally {
-    showLoading(false);
+    if (!bgSync) showLoading(false);
   }
 }
 
@@ -1681,16 +1688,26 @@ async function submitAddRevenue() {
   if (!date) { toast('請選擇日期', 'error'); return; }
   if (cash + linepay + cc === 0) { toast('請至少填寫一項收入金額', 'error'); return; }
 
+  // 1. 樂觀 UI：立刻更新前端
+  const oldData = JSON.parse(JSON.stringify(FINANCE.revenueData || { records: [], atmRecords: [], summary: {}, cashBalance: 0 }));
+  if (!FINANCE.revenueData) FINANCE.revenueData = { records: [], atmRecords: [], summary: {}, cashBalance: 0 };
+  const newRec = { row_id: 'TEMP_' + Date.now(), date, cash, linepay, cc, note, recorder: APP.user.username, timestamp: new Date().toISOString() };
+  FINANCE.revenueData.records = [newRec, ...(FINANCE.revenueData.records || [])];
+  const s = FINANCE.revenueData.summary || {};
+  FINANCE.revenueData.summary = { totalCash: (s.totalCash||0)+cash, totalLinepay: (s.totalLinepay||0)+linepay, totalCC: (s.totalCC||0)+cc, atmTotal: s.atmTotal||0 };
+  renderRevenueSummary(FINANCE.revenueData);
+  renderRevenueList(FINANCE.revenueData);
+  toast('✅ 當日營收已記錄，背景同步中…', 'success');
+  closeAddRevenueModal();
+
+  // 2. 背景送 API，完成後靜默刷新真實資料（取得正確 row_id）
   try {
-    await api('addDailyRevenue', {
-      date, cash, linepay, cc, note,
-      operator: APP.user.username,
-      month: date.substring(0, 7)
-    }, 'POST');
-    toast('✅ 當日營收已記錄！', 'success');
-    closeAddRevenueModal();
-    await loadRevenueData();
+    await api('addDailyRevenue', { date, cash, linepay, cc, note, operator: APP.user.username, month: date.substring(0, 7) }, 'POST');
+    loadRevenueData(true).catch(() => {});
   } catch (e) {
+    FINANCE.revenueData = oldData;
+    renderRevenueSummary(FINANCE.revenueData);
+    renderRevenueList(FINANCE.revenueData);
     toast('送出失敗：' + e.message, 'error');
   }
 }
@@ -1724,17 +1741,26 @@ async function submitAtmDeposit() {
   if (!amount || amount <= 0) { toast('請填寫存款金額', 'error'); return; }
   if (!depositor) { toast('請選擇實際執行存款的人員', 'error'); return; }
 
+  // 1. 樂觀 UI
+  const oldData = JSON.parse(JSON.stringify(FINANCE.revenueData || { records: [], atmRecords: [], summary: {}, cashBalance: 0 }));
+  if (!FINANCE.revenueData) FINANCE.revenueData = { records: [], atmRecords: [], summary: {}, cashBalance: 0 };
+  const newAtm = { deposit_id: 'TEMP_' + Date.now(), date, amount, depositor, recorder: APP.user.username, note, timestamp: new Date().toISOString() };
+  FINANCE.revenueData.atmRecords = [newAtm, ...(FINANCE.revenueData.atmRecords || [])];
+  const s = FINANCE.revenueData.summary || {};
+  FINANCE.revenueData.summary = { ...s, atmTotal: (s.atmTotal||0) + amount };
+  renderRevenueSummary(FINANCE.revenueData);
+  renderRevenueList(FINANCE.revenueData);
+  toast('✅ ATM 存款紀錄已新增，背景同步中…', 'success');
+  closeAtmModal();
+
+  // 2. 背景送 API
   try {
-    await api('addAtmDeposit', {
-      date, amount, depositor,
-      recorder: APP.user.username,
-      note,
-      month: date.substring(0, 7)
-    }, 'POST');
-    toast('✅ ATM 存款紀錄已新增！', 'success');
-    closeAtmModal();
-    await loadRevenueData();
+    await api('addAtmDeposit', { date, amount, depositor, recorder: APP.user.username, note, month: date.substring(0, 7) }, 'POST');
+    loadRevenueData(true).catch(() => {});
   } catch (e) {
+    FINANCE.revenueData = oldData;
+    renderRevenueSummary(FINANCE.revenueData);
+    renderRevenueList(FINANCE.revenueData);
     toast('送出失敗：' + e.message, 'error');
   }
 }
@@ -1770,15 +1796,35 @@ async function submitEditRevenue() {
   if (!rowId) { toast('找不到紀錄 ID，請重試', 'error'); return; }
   if (!reason) { toast('請填寫修改原因', 'error'); return; }
 
+  // 1. 樂觀 UI：立刻更新本地紀錄
+  const oldData = JSON.parse(JSON.stringify(FINANCE.revenueData));
+  if (FINANCE.revenueData && FINANCE.revenueData.records) {
+    const idx = FINANCE.revenueData.records.findIndex(r => r.row_id === rowId);
+    if (idx !== -1) {
+      const old = FINANCE.revenueData.records[idx];
+      const s = FINANCE.revenueData.summary || {};
+      FINANCE.revenueData.summary = {
+        ...s,
+        totalCash: (s.totalCash||0) - (old.cash||0) + cash,
+        totalLinepay: (s.totalLinepay||0) - (old.linepay||0) + linepay,
+        totalCC: (s.totalCC||0) - (old.cc||0) + cc
+      };
+      FINANCE.revenueData.records[idx] = { ...old, cash, linepay, cc, note };
+    }
+  }
+  renderRevenueSummary(FINANCE.revenueData);
+  renderRevenueList(FINANCE.revenueData);
+  toast('✅ 營收資料已修改，背景同步中…', 'success');
+  closeEditRevenueModal();
+
+  // 2. 背景送 API
   try {
-    await api('updateDailyRevenue', {
-      row_id: rowId, cash, linepay, cc, note, reason,
-      operator: APP.user.username
-    }, 'POST');
-    toast('✅ 營收資料已修改！', 'success');
-    closeEditRevenueModal();
-    await loadRevenueData();
+    await api('updateDailyRevenue', { row_id: rowId, cash, linepay, cc, note, reason, operator: APP.user.username }, 'POST');
+    loadRevenueData(true).catch(() => {});
   } catch (e) {
+    FINANCE.revenueData = oldData;
+    renderRevenueSummary(FINANCE.revenueData);
+    renderRevenueList(FINANCE.revenueData);
     toast('修改失敗：' + e.message, 'error');
   }
 }
@@ -1818,19 +1864,21 @@ async function openRevenueChangeLog(rowId, dateStr) {
 //  ② 零用金
 // =============================================================
 
-async function loadPettyCashData() {
+async function loadPettyCashData(bgSync = false) {
   try {
-    showLoading(true);
+    if (!bgSync) showLoading(true);
     const data = await api('getPettyCash', { month: FINANCE.currentMonth }, 'GET', true);
     FINANCE.pettyCashData = data;
     renderPettyCashBalance(data);
     renderPettyCashList(data);
   } catch (e) {
-    document.getElementById('pettyCashBalance').textContent = '載入失敗';
-    document.getElementById('pettyCashList').innerHTML =
-      `<div style="color:var(--danger);text-align:center;padding:16px;">無法載入零用金資料：${escapeHtml(e.message)}</div>`;
+    if (!bgSync) {
+      document.getElementById('pettyCashBalance').textContent = '載入失敗';
+      document.getElementById('pettyCashList').innerHTML =
+        `<div style="color:var(--danger);text-align:center;padding:16px;">無法載入零用金資料：${escapeHtml(e.message)}</div>`;
+    }
   } finally {
-    showLoading(false);
+    if (!bgSync) showLoading(false);
   }
 }
 
@@ -1934,6 +1982,28 @@ async function submitAddPetty() {
     }
   }
 
+  // 1. 樂觀 UI：計算新餘額，立刻更新畫面
+  const oldPettyData = JSON.parse(JSON.stringify(FINANCE.pettyCashData || { balance: 0, entries: [] }));
+  if (!FINANCE.pettyCashData) FINANCE.pettyCashData = { balance: 0, entries: [] };
+  const curBal = FINANCE.pettyCashData.balance || 0;
+  const newBal = type === '支出' ? curBal - amount : curBal + amount;
+  const newEntry = {
+    entry_id: 'TEMP_' + Date.now(),
+    date, type, amount,
+    balance_after: newBal,
+    desc, invoice_code: invoice,
+    invoice_collected: '否',
+    operator: APP.user.username,
+    timestamp: new Date().toISOString()
+  };
+  FINANCE.pettyCashData.balance = newBal;
+  FINANCE.pettyCashData.entries = [newEntry, ...(FINANCE.pettyCashData.entries || [])];
+  renderPettyCashBalance(FINANCE.pettyCashData);
+  renderPettyCashList(FINANCE.pettyCashData);
+  toast(`✅ 零用金${type}已記錄，背景同步中…`, 'success');
+  closeAddPettyModal();
+
+  // 2. 背景送 API
   try {
     await api('addPettyCashEntry', {
       date, type, amount, desc,
@@ -1941,10 +2011,11 @@ async function submitAddPetty() {
       operator: APP.user.username,
       month: date.substring(0, 7)
     }, 'POST');
-    toast(`✅ 零用金${type}已記錄！`, 'success');
-    closeAddPettyModal();
-    await loadPettyCashData();
+    loadPettyCashData(true).catch(() => {});
   } catch (e) {
+    FINANCE.pettyCashData = oldPettyData;
+    renderPettyCashBalance(FINANCE.pettyCashData);
+    renderPettyCashList(FINANCE.pettyCashData);
     toast('送出失敗：' + e.message, 'error');
   }
 }
@@ -1953,14 +2024,23 @@ async function submitAddPetty() {
 async function markInvoiceCollected(entryId) {
   if (!entryId) { toast('找不到紀錄 ID', 'error'); return; }
   if (!confirm('確定要標記此發票為「已收納完成」？')) return;
+
+  // 1. 樂觀 UI：立刻標記
+  const oldPettyData = JSON.parse(JSON.stringify(FINANCE.pettyCashData));
+  if (FINANCE.pettyCashData && FINANCE.pettyCashData.entries) {
+    const idx = FINANCE.pettyCashData.entries.findIndex(e => e.entry_id === entryId);
+    if (idx !== -1) FINANCE.pettyCashData.entries[idx].invoice_collected = '是';
+  }
+  renderPettyCashList(FINANCE.pettyCashData);
+  toast('✅ 發票已標記收納完成，背景同步中…', 'success');
+
+  // 2. 背景送 API
   try {
-    await api('markInvoiceCollected', {
-      entry_id: entryId,
-      operator: APP.user.username
-    }, 'POST');
-    toast('✅ 發票已標記收納完成！', 'success');
-    await loadPettyCashData();
+    await api('markInvoiceCollected', { entry_id: entryId, operator: APP.user.username }, 'POST');
+    loadPettyCashData(true).catch(() => {});
   } catch (e) {
+    FINANCE.pettyCashData = oldPettyData;
+    renderPettyCashList(FINANCE.pettyCashData);
     toast('操作失敗：' + e.message, 'error');
   }
 }

@@ -853,7 +853,11 @@ function applyInitData(data) {
   document.getElementById('storeName').textContent = data.settings.STORE_NAME || 'Feeling Bar';
 
   // 永遠預設最新月份（排序後取最後一項）
-  APP.monthList = (data.months || []).slice().sort();
+  // 過濾掉 GAS 因 Date 型別造成的異常字串，只保留 YYYY-MM 格式
+  APP.monthList = (data.months || [])
+    .map(m => String(m || '').trim())
+    .filter(m => /^\d{4}-\d{2}$/.test(m))
+    .sort();
   const latestMonth = APP.monthList.length
     ? APP.monthList[APP.monthList.length - 1]
     : (data.settings.CURRENT_MONTH || '');

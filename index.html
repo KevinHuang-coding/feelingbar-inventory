@@ -254,6 +254,16 @@
   .atm-row-label { font-size: 13px; font-weight: 700; color: #F5B041; }
   .atm-row-amount { font-weight: 800; font-size: 15px; color: #F5B041; }
   .atm-row-meta { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+  /* v3.1 — ATM 暫不計入樣式 */
+  .atm-row.excluded { opacity: 0.55; border-style: dashed; background: #181818; }
+  .atm-row.excluded .atm-row-label,
+  .atm-row.excluded .atm-row-amount { color: #888 !important; text-decoration: line-through; text-decoration-thickness: 1px; }
+  .atm-excluded-badge { display: inline-block; background: #F39C12; color: #1A1F0F; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; letter-spacing: 0.5px; }
+  .atm-actions { margin-top: 8px; display: flex; gap: 6px; justify-content: flex-end; }
+  .btn-atm-exclude { font-size: 11px; padding: 4px 10px; border-radius: 6px; border: 1px solid #F39C12; background: transparent; color: #F39C12; cursor: pointer; }
+  .btn-atm-exclude:hover { background: rgba(243,156,18,0.15); }
+  .btn-atm-exclude.restore { border-color: #4FC78F; color: #4FC78F; }
+  .btn-atm-exclude.restore:hover { background: rgba(79,199,143,0.15); }
 
   /* 零用金 */
   .petty-balance-card { background: linear-gradient(135deg, #1F3A2C, #2A5A40); border-radius: 12px; padding: 16px; margin-bottom: 12px; border: 1px solid #3A8862; }
@@ -1611,16 +1621,26 @@ function renderRevenueList(data) {
 
   listEl.innerHTML = all.map(r => {
     if (r._type === 'atm') {
+      const isExcluded = !!r.excluded;
+      const isAdmin = !!(APP.user && APP.user.isAdmin);
+      const excludedClass = isExcluded ? ' excluded' : '';
+      const excludedBadge = isExcluded ? '<span class="atm-excluded-badge">暫不計入</span>' : '';
+      const btnLabel = isExcluded ? '↩️ 恢復計入' : '🙈 暫不計入';
+      const btnClass = isExcluded ? 'btn-atm-exclude restore' : 'btn-atm-exclude';
+      const actionsHtml = isAdmin
+        ? `<div class="atm-actions"><button class="${btnClass}" onclick="toggleAtmExcluded('${escapeHtml(r.deposit_id||'')}', ${isExcluded})">${btnLabel}</button></div>`
+        : '';
       return `
-        <div class="atm-row">
+        <div class="atm-row${excludedClass}">
           <div class="atm-row-top">
-            <div class="atm-row-label">🏧 ATM 存款　${escapeHtml(r.date || '')}</div>
+            <div class="atm-row-label">🏧 ATM 存款　${escapeHtml(r.date || '')}${excludedBadge}</div>
             <div class="atm-row-amount">${fmtMoney(r.amount)}</div>
           </div>
           <div class="atm-row-meta">
             記錄人：${escapeHtml(r.recorder || '-')}　／　執行存款人員：<strong style="color:var(--text-main);">${escapeHtml(r.depositor || '-')}</strong>
             ${r.note ? `　·　${escapeHtml(r.note)}` : ''}
           </div>
+          ${actionsHtml}
         </div>`;
     }
     const daily = (r.cash || 0) + (r.linepay || 0) + (r.cc || 0);
@@ -1713,6 +1733,52 @@ async function submitAddRevenue() {
     renderRevenueSummary(FINANCE.revenueData);
     renderRevenueList(FINANCE.revenueData);
     toast('送出失敗：' + e.message, 'error');
+  }
+}
+
+
+/* ---- v3.1 ATM 暫不計入切換（admin only） ---- */
+async function toggleAtmExcluded(depositId, currentExcluded) {
+  if (!depositId) { toast('找不到存款編號', 'error'); return; }
+  if (!APP.user || !APP.user.isAdmin) { toast('此功能僅限 admin', 'error'); return; }
+  const willExclude = !currentExcluded;
+  const verb = willExclude ? '標記為「暫不計入」' : '恢復「計入計算」';
+  if (!confirm(`確定要將此筆 ATM 存款${verb}？\n\n標記後該筆金額將不會加入「ATM 存款累計」與「門市現金餘額」計算，但紀錄本身仍會保留。`)) return;
+
+  // 1. 備份舊資料
+  const oldData = JSON.parse(JSON.stringify(FINANCE.revenueData || { records: [], atmRecords: [], summary: {} }));
+
+  // 2. 樂觀 UI：本地立刻改 excluded 並重新計算 totalAtm
+  if (FINANCE.revenueData && FINANCE.revenueData.atmRecords) {
+    const idx = FINANCE.revenueData.atmRecords.findIndex(a => a.deposit_id === depositId);
+    if (idx >= 0) {
+      const a = FINANCE.revenueData.atmRecords[idx];
+      const amt = Number(a.amount) || 0;
+      const wasExcluded = !!a.excluded;
+      // 更新 excluded 狀態
+      FINANCE.revenueData.atmRecords[idx] = { ...a, excluded: willExclude };
+      // 重新計算 totalAtm（若原本不計入現在要計入，加 amt；若原本計入現在不計入，扣 amt）
+      const s = FINANCE.revenueData.summary || {};
+      let totalAtm = Number(s.totalAtm || 0);
+      if (wasExcluded && !willExclude) totalAtm += amt;        // 恢復計入 → 加回
+      else if (!wasExcluded && willExclude) totalAtm -= amt;   // 改為不計入 → 扣除
+      FINANCE.revenueData.summary = { ...s, totalAtm: totalAtm };
+    }
+  }
+  renderRevenueSummary(FINANCE.revenueData);
+  renderRevenueList(FINANCE.revenueData);
+  toast(`✅ 已${willExclude ? '標記為暫不計入' : '恢復計入'}，背景同步中…`, 'success');
+
+  // 3. 背景送 API
+  try {
+    await api('toggleAtmExcluded', { deposit_id: depositId }, 'POST');
+    loadRevenueData(true).catch(() => {}); // 背景重整確認
+  } catch (e) {
+    // rollback
+    FINANCE.revenueData = oldData;
+    renderRevenueSummary(FINANCE.revenueData);
+    renderRevenueList(FINANCE.revenueData);
+    toast('切換失敗：' + e.message, 'error');
   }
 }
 

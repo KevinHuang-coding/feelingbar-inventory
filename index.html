@@ -287,6 +287,14 @@
   .petty-amount { font-size: 17px; font-weight: 800; }
   .petty-amount.支出 { color: #F5B041; }
   .petty-amount.儲值 { color: #58D68D; }
+  /* 零用金編輯功能 v3.2 */
+  .petty-edited-badge { display:inline-block; font-size:11px; color:#E59866; background:rgba(229,152,102,0.12); border:1px solid rgba(229,152,102,0.3); border-radius:4px; padding:2px 6px; margin-left:6px; cursor:pointer; vertical-align:middle; }
+  .petty-edited-badge:hover { background:rgba(229,152,102,0.22); }
+  .btn-petty-edit { font-size:11px; padding:3px 9px; background:transparent; color:var(--text-faint); border:1px solid var(--border); border-radius:5px; cursor:pointer; margin-top:5px; display:inline-block; }
+  .btn-petty-edit:hover { color:var(--text-main); border-color:var(--accent); }
+  .edit-log-box { background:rgba(255,255,255,0.03); border-radius:6px; padding:8px 10px; margin-top:8px; border:1px solid var(--border-dim); }
+  .edit-log-item { font-size:11px; color:var(--text-faint); padding:3px 0; border-bottom:1px solid var(--border-dim); line-height:1.5; }
+  .edit-log-item:last-child { border-bottom:none; }
 
   /* 金流 module tab switcher（複用 cat-tab 樣式即可）*/
   .btn-finance { background: linear-gradient(135deg, #1F4D38, #2A6B4D); color: #BCE8C8; border: 1px solid #3A8862; }
@@ -698,6 +706,35 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddPettyModal()">取消</button>
       <button class="btn-confirm" onclick="submitAddPetty()">確定送出</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal：重新編輯零用金金額 (v3.2) ============ -->
+<div id="editPettyModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>✏️ 重新編輯金額</h3>
+    <input type="hidden" id="editPettyEntryId">
+    <input type="hidden" id="editPettyType">
+    <div class="form-row">
+      <label>原始金額</label>
+      <div id="editPettyOriginalDisplay" style="padding:6px 0;color:var(--text-sub);font-size:14px;"></div>
+    </div>
+    <div class="form-row">
+      <label for="editPettyNewAmount">新金額 (NT$)　＊必填</label>
+      <input id="editPettyNewAmount" type="number" inputmode="decimal" min="1" placeholder="請輸入正確金額">
+    </div>
+    <div class="form-row">
+      <label for="editPettyReason">修改原因　＊必填</label>
+      <input id="editPettyReason" type="text" placeholder="例如：金額輸入有誤，實際應為 500 元">
+    </div>
+    <div id="editPettyLogSection" style="display:none;">
+      <div style="font-size:11px;color:var(--text-faint);margin:10px 0 4px;letter-spacing:.5px;">── 歷史編輯紀錄 ──</div>
+      <div id="editPettyLogList" class="edit-log-box"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditPettyModal()">取消</button>
+      <button class="btn-confirm" onclick="submitEditPetty()">✅ 確認修改</button>
     </div>
   </div>
 </div>
@@ -1994,14 +2031,21 @@ function renderPettyCashList(data) {
       }
     }
 
+    // 編輯 badge + 歷史紀錄
+    const editedBadge = e.edited
+      ? `<span class="petty-edited-badge" onclick='openEditPettyModal(${JSON.stringify(e.entry_id)},${e.amount},${JSON.stringify(e.type)},${JSON.stringify(e.edit_logs||[])})'>📝 已編輯 ${(e.edit_logs||[]).length}次</span>`
+      : '';
+    const editBtn = `<button class="btn-petty-edit" onclick='openEditPettyModal(${JSON.stringify(e.entry_id)},${e.amount},${JSON.stringify(e.type)},${JSON.stringify(e.edit_logs||[])})'>✏️ 重新編輯金額</button>`;
+
     return `
       <div class="petty-row">
         <div class="petty-type-badge ${e.type}">${e.type}</div>
         <div class="petty-info">
-          <div class="petty-date">${escapeHtml(e.date || '')}　·　${escapeHtml(e.operator || '-')}</div>
+          <div class="petty-date">${escapeHtml(e.date || '')}　·　${escapeHtml(e.operator || '-')}${editedBadge}</div>
           <div class="petty-desc">${escapeHtml(e.desc || (e.type === '儲值' ? '零用金儲值' : '-'))}</div>
           <div class="petty-balance-after">餘額：${fmtMoney(e.balance_after)}</div>
           ${invoiceHtml}
+          ${editBtn}
         </div>
         <div class="petty-amount-col">
           <div class="petty-amount ${e.type}">${sign}${fmtMoney(e.amount)}</div>
@@ -2112,6 +2156,85 @@ async function markInvoiceCollected(entryId) {
     FINANCE.pettyCashData = oldPettyData;
     renderPettyCashList(FINANCE.pettyCashData);
     toast('操作失敗：' + e.message, 'error');
+  }
+}
+
+/* ===================================================================
+ * v3.2 零用金編輯功能
+ * =================================================================== */
+function openEditPettyModal(entryId, currentAmount, type, editLogs) {
+  document.getElementById('editPettyEntryId').value   = entryId;
+  document.getElementById('editPettyType').value      = type;
+  document.getElementById('editPettyNewAmount').value = currentAmount;
+  document.getElementById('editPettyReason').value    = '';
+  document.getElementById('editPettyOriginalDisplay').textContent =
+    (type === '支出' ? '支出 −' : '儲值 +') + fmtMoney(currentAmount);
+
+  // 歷史紀錄區塊
+  const logSection = document.getElementById('editPettyLogSection');
+  const logList    = document.getElementById('editPettyLogList');
+  if (editLogs && editLogs.length > 0) {
+    logList.innerHTML = editLogs.map(l =>
+      `<div class="edit-log-item">
+        ${escapeHtml(l.timestamp)} · ${escapeHtml(l.operator)}：
+        ${fmtMoney(l.original_amount)} → ${fmtMoney(l.new_amount)}
+        ／原因：${escapeHtml(l.reason)}
+      </div>`
+    ).join('');
+    logSection.style.display = '';
+  } else {
+    logSection.style.display = 'none';
+  }
+
+  document.getElementById('editPettyModal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('editPettyNewAmount').focus(), 120);
+}
+
+function closeEditPettyModal() {
+  document.getElementById('editPettyModal').classList.add('hidden');
+}
+
+async function submitEditPetty() {
+  const entryId   = document.getElementById('editPettyEntryId').value;
+  const type      = document.getElementById('editPettyType').value;
+  const newAmount = parseInt(document.getElementById('editPettyNewAmount').value, 10);
+  const reason    = document.getElementById('editPettyReason').value.trim();
+
+  if (!newAmount || newAmount <= 0) { toast('⚠️ 請輸入有效金額', 'warning'); return; }
+  if (!reason) { toast('⚠️ 請填寫修改原因', 'warning'); return; }
+
+  const operator = APP.user ? APP.user.username : '未知';
+
+  if (!confirm(`確認將此筆${type}金額修改為 ${fmtMoney(newAmount)}？\n修改原因：${reason}\n（此操作將重算後續所有餘額）`)) return;
+
+  // 樂觀 UI：本地立刻更新金額顯示
+  const oldPettyData = JSON.parse(JSON.stringify(FINANCE.pettyCashData));
+  if (FINANCE.pettyCashData && FINANCE.pettyCashData.entries) {
+    const idx = FINANCE.pettyCashData.entries.findIndex(e => e.entry_id === entryId);
+    if (idx !== -1) {
+      FINANCE.pettyCashData.entries[idx].amount = newAmount;
+      FINANCE.pettyCashData.entries[idx].edited = true;
+      FINANCE.pettyCashData.entries[idx].edit_logs = [
+        { timestamp: new Date().toLocaleString('zh-TW'), operator,
+          original_amount: oldPettyData.entries[idx].amount,
+          new_amount: newAmount, reason, type },
+        ...(FINANCE.pettyCashData.entries[idx].edit_logs || [])
+      ];
+    }
+  }
+  renderPettyCashList(FINANCE.pettyCashData);
+  toast('✅ 編輯已送出，背景同步餘額中…', 'success');
+  closeEditPettyModal();
+
+  try {
+    await api('updatePettyCashEntry', { entry_id: entryId, new_amount: newAmount, reason, operator }, 'POST');
+    // 完成後重新載入（取得後端重算後的 balance_after）
+    loadPettyCashData(true).catch(() => {});
+  } catch(e) {
+    FINANCE.pettyCashData = oldPettyData;
+    renderPettyCashBalance(FINANCE.pettyCashData);
+    renderPettyCashList(FINANCE.pettyCashData);
+    toast('❌ 送出失敗：' + e.message, 'error');
   }
 }
 

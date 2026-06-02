@@ -1606,8 +1606,12 @@ async function loadRevenueData(bgSync = false) {
 function renderRevenueSummary(data) {
   const s = data.summary || {};
   const totalRevenue = (s.totalCash || 0) + (s.totalLinepay || 0) + (s.totalCC || 0);
-  const cashBalance = (s.totalCash || 0) - (s.totalAtm || 0);
+  const carryOver   = s.carryOver || 0;
+  const cashBalance = carryOver + (s.totalCash || 0) - (s.totalAtm || 0);
   const isDeficit = cashBalance < 0;
+  const carryLabel  = carryOver !== 0
+    ? `前月結餘 ${fmtMoney(carryOver)} + 現金收入 − ATM存款`
+    : `現金收入 − ATM存款`;
 
   document.getElementById('revenueSummary').innerHTML = `
     <div class="revenue-summary-card revenue-total span2">
@@ -1631,7 +1635,7 @@ function renderRevenueSummary(data) {
       <div class="card-value">${fmtMoney(s.totalAtm)}</div>
     </div>
     <div class="revenue-summary-card cash-balance ${isDeficit ? 'deficit' : ''} span2">
-      <div class="card-title">${isDeficit ? '⚠️' : '💵'} 門市現金餘額（現金收入 − ATM存款）</div>
+      <div class="card-title">${isDeficit ? '⚠️' : '💵'} 門市現金餘額（${carryLabel}）</div>
       <div class="card-value">${fmtMoney(cashBalance)}</div>
     </div>
   `;
@@ -1755,7 +1759,7 @@ async function submitAddRevenue() {
   const newRec = { row_id: 'TEMP_' + Date.now(), date, cash, linepay, cc, note, recorder: APP.user.username, timestamp: new Date().toISOString() };
   FINANCE.revenueData.records = [newRec, ...(FINANCE.revenueData.records || [])];
   const s = FINANCE.revenueData.summary || {};
-  FINANCE.revenueData.summary = { totalCash: (s.totalCash||0)+cash, totalLinepay: (s.totalLinepay||0)+linepay, totalCC: (s.totalCC||0)+cc, atmTotal: s.atmTotal||0 };
+  FINANCE.revenueData.summary = { totalCash: (s.totalCash||0)+cash, totalLinepay: (s.totalLinepay||0)+linepay, totalCC: (s.totalCC||0)+cc, totalAtm: s.totalAtm||0, carryOver: s.carryOver||0 };
   renderRevenueSummary(FINANCE.revenueData);
   renderRevenueList(FINANCE.revenueData);
   toast('✅ 當日營收已記錄，背景同步中…', 'success');

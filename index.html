@@ -526,6 +526,7 @@
     <div class="cat-tabs" style="margin-top:8px;">
       <button class="cat-tab active" id="tabRevenue" onclick="switchFinanceTab('revenue')">📊 門市營收</button>
       <button class="cat-tab" id="tabPettyCash" onclick="switchFinanceTab('pettyCash')">🪙 零用金</button>
+      <button class="cat-tab" id="tabKol" onclick="switchFinanceTab('kol')">🎬 KOL探店</button>
     </div>
   </div>
   <div class="container">
@@ -562,6 +563,15 @@
       <div id="pettyCashList"></div>
     </div>
 
+    <!-- ====== KOL 探店排程 Panel ====== -->
+    <div id="kolPanel" style="display:none;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+        <span style="font-size:14px;color:var(--text-sub);">🎬 KOL 探店排程管理</span>
+        <button class="btn-action btn-purchase" style="padding:8px 14px;font-size:13px;" onclick="openAddKolModal()">＋ 新增排程</button>
+      </div>
+      <div id="kolList"><div style="text-align:center;color:var(--text-faint);padding:20px;">載入中...</div></div>
+    </div>
+
   </div>
 </div>
 
@@ -590,12 +600,80 @@
       <strong id="revDailyTotal" style="color:#1ABC9C;font-size:18px;">$0</strong>
     </div>
     <div class="form-row">
+      <label>結帳班別</label>
+      <div style="display:flex;gap:12px;margin-top:4px;">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="revShift" id="revShiftAM" value="午班" checked> 午班（日咖）
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+          <input type="radio" name="revShift" id="revShiftPM" value="晚班"> 晚班（夜酒）
+        </label>
+      </div>
+    </div>
+    <div class="form-row">
       <label for="revNote">備註（選填）</label>
       <input id="revNote" type="text" placeholder="例如：特殊活動、節假日等">
     </div>
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddRevenueModal()">取消</button>
       <button class="btn-confirm" onclick="submitAddRevenue()">確定送出</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal：新增/編輯 KOL 探店 ============ -->
+<div id="addKolModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-height:88vh;overflow-y:auto;">
+    <h3 id="kolModalTitle">🎬 新增 KOL 探店排程</h3>
+    <input type="hidden" id="kolEditId">
+    <div class="form-row">
+      <label for="kolName">KOL 名稱 / 帳號</label>
+      <input id="kolName" type="text" placeholder="例：@influencer_name">
+    </div>
+    <div class="form-row">
+      <label for="kolDate">探店日期</label>
+      <input id="kolDate" type="date">
+    </div>
+    <div class="form-row">
+      <label for="kolTime">探店時間</label>
+      <input id="kolTime" type="time" placeholder="14:00">
+    </div>
+    <div class="form-row">
+      <label for="kolHeadcount">到訪人數</label>
+      <input id="kolHeadcount" type="number" inputmode="numeric" placeholder="0" min="0">
+    </div>
+    <div class="form-row">
+      <label for="kolFollowers">粉絲流量 / 平台</label>
+      <input id="kolFollowers" type="text" placeholder="例：IG 5萬、YT 10萬">
+    </div>
+    <div class="form-row">
+      <label for="kolFee">支付費用 (NT$)</label>
+      <input id="kolFee" type="number" inputmode="decimal" placeholder="0" min="0">
+    </div>
+    <div class="form-row" style="align-items:center;">
+      <label>勞報單是否填寫並收回</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:4px;">
+        <input type="checkbox" id="kolLaborForm" style="width:18px;height:18px;"> 已填寫並收回
+      </label>
+    </div>
+    <div class="form-row">
+      <label for="kolNote">備註（選填）</label>
+      <input id="kolNote" type="text" placeholder="特殊需求或安排">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeAddKolModal()">取消</button>
+      <button class="btn-confirm" onclick="submitKolVisit()">確定送出</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal：KOL 探店提醒 ============ -->
+<div id="kolReminderModal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <h3>📢 門市提醒</h3>
+    <div id="kolReminderContent" style="font-size:15px;line-height:1.8;color:var(--text-main);padding:12px 0;"></div>
+    <div class="modal-actions">
+      <button class="btn-confirm" style="width:100%;" onclick="document.getElementById('kolReminderModal').classList.add('hidden')">我知道了</button>
     </div>
   </div>
 </div>
@@ -1568,6 +1646,9 @@ function switchFinanceTab(tab) {
   renderFinanceTabs();
   document.getElementById('revenuePanel').style.display = tab === 'revenue' ? '' : 'none';
   document.getElementById('pettyCashPanel').style.display = tab === 'pettyCash' ? '' : 'none';
+  document.getElementById('kolPanel').style.display = tab === 'kol' ? '' : 'none';
+  document.getElementById('tabKol').classList.toggle('active', tab === 'kol');
+  if (tab === 'kol') loadKolSchedule();
   loadFinanceData();
 }
 
@@ -1688,7 +1769,7 @@ function renderRevenueList(data) {
     return `
       <div class="revenue-row">
         <div class="rev-date-row">
-          <div class="rev-date-label">📅 ${escapeHtml(r.date || '')}</div>
+          <div class="rev-date-label">📅 ${escapeHtml(r.date || '')}${r.shift ? ` <span style="font-size:11px;padding:2px 7px;border-radius:10px;background:${r.shift==='午班'?'#2a6049':'#1a3a5c'};color:#aee;margin-left:6px;">${r.shift}</span>` : ''}</div>
           <div class="rev-daily-total">${fmtMoney(daily)}</div>
         </div>
         <div class="rev-recorder">記錄人：${escapeHtml(r.recorder || '-')}${r.note ? `　·　${escapeHtml(r.note)}` : ''}</div>
@@ -1749,6 +1830,7 @@ async function submitAddRevenue() {
   const linepay = Number(document.getElementById('revLinepay').value) || 0;
   const cc = Number(document.getElementById('revCC').value) || 0;
   const note = document.getElementById('revNote').value.trim();
+  const shift = document.querySelector('input[name="revShift"]:checked')?.value || '午班';
 
   if (!date) { toast('請選擇日期', 'error'); return; }
   if (cash + linepay + cc === 0) { toast('請至少填寫一項收入金額', 'error'); return; }
@@ -1756,7 +1838,7 @@ async function submitAddRevenue() {
   // 1. 樂觀 UI：立刻更新前端
   const oldData = JSON.parse(JSON.stringify(FINANCE.revenueData || { records: [], atmRecords: [], summary: {}, cashBalance: 0 }));
   if (!FINANCE.revenueData) FINANCE.revenueData = { records: [], atmRecords: [], summary: {}, cashBalance: 0 };
-  const newRec = { row_id: 'TEMP_' + Date.now(), date, cash, linepay, cc, note, recorder: APP.user.username, timestamp: new Date().toISOString() };
+  const newRec = { row_id: 'TEMP_' + Date.now(), date, cash, linepay, cc, note, shift, recorder: APP.user.username, timestamp: new Date().toISOString() };
   FINANCE.revenueData.records = [newRec, ...(FINANCE.revenueData.records || [])];
   const s = FINANCE.revenueData.summary || {};
   FINANCE.revenueData.summary = { totalCash: (s.totalCash||0)+cash, totalLinepay: (s.totalLinepay||0)+linepay, totalCC: (s.totalCC||0)+cc, totalAtm: s.totalAtm||0, carryOver: s.carryOver||0 };
@@ -1767,7 +1849,7 @@ async function submitAddRevenue() {
 
   // 2. 背景送 API，完成後靜默刷新真實資料（取得正確 row_id）
   try {
-    await api('addDailyRevenue', { date, cash, linepay, cc, note, operator: APP.user.username, month: date.substring(0, 7) }, 'POST');
+    await api('addDailyRevenue', { date, cash, linepay, cc, note, shift, operator: APP.user.username, month: date.substring(0, 7) }, 'POST');
     loadRevenueData(true).catch(() => {});
   } catch (e) {
     FINANCE.revenueData = oldData;
@@ -2249,6 +2331,7 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       APP.user = JSON.parse(cached);
       initApp();
+      checkKolReminder();
       return;
     } catch (e) {}
   }
@@ -2258,6 +2341,131 @@ window.addEventListener('DOMContentLoaded', () => {
 document.getElementById('loginPassword').addEventListener('keypress', e => {
   if (e.key === 'Enter') doLogin();
 });
+// =============================================================
+//  v3.5 KOL 探店管理
+// =============================================================
+
+async function loadKolSchedule() {
+  document.getElementById('kolList').innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:20px;">載入中...</div>';
+  try {
+    const d = await api('getKolSchedule');
+    renderKolList(d.visits || []);
+  } catch(e) {
+    document.getElementById('kolList').innerHTML = `<div style="color:var(--danger);padding:12px;">載入失敗：${e.message}</div>`;
+  }
+}
+
+function renderKolList(visits) {
+  const el = document.getElementById('kolList');
+  if (!visits.length) { el.innerHTML = '<div style="text-align:center;color:var(--text-faint);padding:30px;">尚無排程</div>'; return; }
+  const today = new Date().toISOString().substring(0,10);
+  el.innerHTML = visits.map(v => {
+    const isPast = v.visit_date < today;
+    const isToday = v.visit_date === today;
+    const statusColor = isToday ? '#F1C40F' : isPast ? 'var(--text-faint)' : '#1ABC9C';
+    const laborBadge = v.labor_form_collected
+      ? '<span style="font-size:11px;padding:2px 6px;border-radius:8px;background:#1a4a2a;color:#5af5a0;">✅ 勞報單已收</span>'
+      : '<span style="font-size:11px;padding:2px 6px;border-radius:8px;background:#4a1a1a;color:#f5a0a0;">⚠️ 勞報單未收</span>';
+    return `
+    <div style="background:var(--bg-card);border-radius:10px;padding:14px;margin-bottom:10px;border-left:3px solid ${statusColor};opacity:${isPast?'0.65':'1'};">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-size:15px;font-weight:600;color:var(--text-main);">🎬 ${escapeHtml(v.kol_name)}</div>
+          <div style="font-size:13px;color:var(--text-sub);margin-top:3px;">📅 ${v.visit_date}${v.visit_time?' '+v.visit_time:''}　👥 ${v.headcount||0}人</div>
+          <div style="font-size:12px;color:var(--text-faint);margin-top:2px;">📊 ${escapeHtml(v.followers||'未填')}　💰 ${v.fee?'NT$'+v.fee.toLocaleString():'免費'}</div>
+          <div style="margin-top:6px;">${laborBadge}</div>
+          ${v.note?`<div style="font-size:12px;color:var(--text-faint);margin-top:4px;">備註：${escapeHtml(v.note)}</div>`:''}
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:70px;">
+          <button class="btn-sm" onclick='openEditKolModal(${JSON.stringify(v).replace(/\\/g,"\\\\").replace(/'/g,"&#39;")})'>✏️ 編輯</button>
+          <button class="btn-sm" style="color:var(--danger);" onclick="deleteKolVisit('${escapeHtml(v.kol_id)}')">🗑️ 刪除</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openAddKolModal() {
+  document.getElementById('kolModalTitle').textContent = '🎬 新增 KOL 探店排程';
+  document.getElementById('kolEditId').value = '';
+  ['kolName','kolDate','kolTime','kolFollowers','kolNote'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('kolHeadcount').value = '';
+  document.getElementById('kolFee').value = '';
+  document.getElementById('kolLaborForm').checked = false;
+  document.getElementById('addKolModal').classList.remove('hidden');
+}
+
+function openEditKolModal(v) {
+  document.getElementById('kolModalTitle').textContent = '✏️ 編輯 KOL 探店排程';
+  document.getElementById('kolEditId').value = v.kol_id || '';
+  document.getElementById('kolName').value = v.kol_name || '';
+  document.getElementById('kolDate').value = v.visit_date || '';
+  document.getElementById('kolTime').value = v.visit_time || '';
+  document.getElementById('kolHeadcount').value = v.headcount || '';
+  document.getElementById('kolFollowers').value = v.followers || '';
+  document.getElementById('kolFee').value = v.fee || '';
+  document.getElementById('kolLaborForm').checked = !!v.labor_form_collected;
+  document.getElementById('kolNote').value = v.note || '';
+  document.getElementById('addKolModal').classList.remove('hidden');
+}
+
+function closeAddKolModal() {
+  document.getElementById('addKolModal').classList.add('hidden');
+}
+
+async function submitKolVisit() {
+  const kolId = document.getElementById('kolEditId').value;
+  const kol_name = document.getElementById('kolName').value.trim();
+  const visit_date = document.getElementById('kolDate').value;
+  const visit_time = document.getElementById('kolTime').value;
+  const headcount = Number(document.getElementById('kolHeadcount').value) || 0;
+  const followers = document.getElementById('kolFollowers').value.trim();
+  const fee = Number(document.getElementById('kolFee').value) || 0;
+  const labor_form_collected = document.getElementById('kolLaborForm').checked;
+  const note = document.getElementById('kolNote').value.trim();
+
+  if (!kol_name) { toast('請填寫 KOL 名稱', 'error'); return; }
+  if (!visit_date) { toast('請選擇探店日期', 'error'); return; }
+
+  const params = { kol_name, visit_date, visit_time, headcount, followers, fee, labor_form_collected, note, operator: APP.user.username };
+  try {
+    if (kolId) {
+      await api('updateKolVisit', { kol_id: kolId, ...params }, 'POST');
+      toast('✅ KOL 排程已更新', 'success');
+    } else {
+      await api('addKolVisit', params, 'POST');
+      toast('✅ KOL 排程已新增', 'success');
+    }
+    closeAddKolModal();
+    loadKolSchedule();
+  } catch(e) {
+    toast('送出失敗：' + e.message, 'error');
+  }
+}
+
+async function deleteKolVisit(kolId) {
+  if (!confirm('確定要刪除此 KOL 探店排程？')) return;
+  try {
+    await api('deleteKolVisit', { kol_id: kolId }, 'POST');
+    toast('✅ 已刪除', 'success');
+    loadKolSchedule();
+  } catch(e) {
+    toast('刪除失敗：' + e.message, 'error');
+  }
+}
+
+async function checkKolReminder() {
+  try {
+    const d = await api('getKolReminder');
+    const reminders = d.reminders || [];
+    if (!reminders.length) return;
+    document.getElementById('kolReminderContent').innerHTML =
+      reminders.map(r => `<div style="background:var(--bg-stat);border-radius:8px;padding:12px;margin-bottom:8px;border-left:3px solid #F1C40F;">⚠️ ${escapeHtml(r.message)}</div>`).join('');
+    document.getElementById('kolReminderModal').classList.remove('hidden');
+  } catch(e) { /* 靜默失敗 */ }
+}
+
+
 </script>
 </body>
 </html>

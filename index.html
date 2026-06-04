@@ -275,6 +275,7 @@
   .petty-type-badge { flex-shrink: 0; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 700; margin-top: 2px; }
   .petty-type-badge.支出 { background: #3A2818; color: #F5B041; border: 1px solid #5A3820; }
   .petty-type-badge.儲值 { background: #1A3326; color: #58D68D; border: 1px solid #2A5A3A; }
+  .petty-type-badge.月初結餘移入 { background: #1a2d3d; color: #60c8f0; border: 1px solid #2a5a7a; font-size:11px; }
   .petty-info { flex: 1; min-width: 0; }
   .petty-date { font-size: 11px; color: var(--text-faint); }
   .petty-desc { font-size: 13px; color: var(--text-main); margin: 3px 0; word-break: break-word; font-weight: 500; }
@@ -876,18 +877,26 @@ function escapeHtml(s) {
 // v2.8.1: 加 silent 參數，背景送 API 不顯示 loading 圓圈
 async function api(action, params={}, method='GET', silent=false) {
   if (!silent) showLoading(true);
+  // v3.7: 30s timeout + 防瀏覽器快取
+  const ctrl = new AbortController();
+  const tid  = setTimeout(() => ctrl.abort(), 30000);
   try {
     let res;
+    const opts = { signal: ctrl.signal, cache: 'no-store' };
     if (method === 'POST') {
-      res = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action, ...params }) });
+      res = await fetch(GAS_URL, { ...opts, method: 'POST', body: JSON.stringify({ action, ...params }) });
     } else {
-      const qs = new URLSearchParams({ action, ...params }).toString();
-      res = await fetch(GAS_URL + '?' + qs);
+      const qs = new URLSearchParams({ action, ...params, _t: Date.now() }).toString();
+      res = await fetch(GAS_URL + '?' + qs, opts);
     }
     const j = await res.json();
     if (!j.ok) throw new Error(j.error || 'API錯誤');
     return j.data;
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('連線逾時（30秒），請重試');
+    throw e;
   } finally {
+    clearTimeout(tid);
     if (!silent) showLoading(false);
   }
 }
@@ -1469,7 +1478,10 @@ async function confirmDeleteItem(itemId, itemName) {
 
 // ============= v2.4 月中小型盤點 + 安全水位 =============
 // v2.8: 樂觀 UI — 小型盤點立刻反應，不阻塞畫面
+let _miniSubmitting = false; // v3.7 防重複送出
 async function submitMiniCount() {
+  if (_miniSubmitting) { toast('送出中，請稍候再試...', 'error'); return; }
+  _miniSubmitting = true;
   const date = document.getElementById('miniFormDate').value;
   const qty = document.getElementById('miniFormQty').value;
   const note = document.getElementById('miniFormNote').value;
@@ -1519,6 +1531,8 @@ async function submitMiniCount() {
     setupSafetySection(it);
     setupMiniSection(it);
     toast('送出失敗，已復原：' + e.message, 'error');
+  } finally {
+    _miniSubmitting = false; // v3.7 解鎖
   }
 }
 
@@ -2126,11 +2140,12 @@ function renderPettyCashList(data) {
   }
 
   listEl.innerHTML = entries.map(e => {
-    const isExp = e.type === '支出';
-    const sign = isExp ? '−' : '+';
+    const isCarry = e.type === '月初結餘移入'; // v3.7
+    const isExp = !isCarry && e.type === '支出';
+    const sign = isCarry ? '↩' : isExp ? '−' : '+';
 
     let invoiceHtml = '';
-    if (isExp) {
+    if (isExp && !isCarry) {
       if (e.invoice_code) {
         invoiceHtml = e.invoice_collected
           ? `<span class="petty-invoice ok">🧾 發票後五碼：${escapeHtml(e.invoice_code)}　✓ 已收納</span>`
@@ -2144,7 +2159,7 @@ function renderPettyCashList(data) {
     const editedBadge = e.edited
       ? `<span class="petty-edited-badge" onclick='openEditPettyModal(${JSON.stringify(e.entry_id)},${e.amount},${JSON.stringify(e.type)},${JSON.stringify(e.edit_logs||[])})'>📝 已編輯 ${(e.edit_logs||[]).length}次</span>`
       : '';
-    const editBtn = `<button class="btn-petty-edit" onclick='openEditPettyModal(${JSON.stringify(e.entry_id)},${e.amount},${JSON.stringify(e.type)},${JSON.stringify(e.edit_logs||[])})'>✏️ 重新編輯金額</button>`;
+    const editBtn = isCarry ? '' : `<button class="btn-petty-edit" onclick='openEditPettyModal(${JSON.stringify(e.entry_id)},${e.amount},${JSON.stringify(e.type)},${JSON.stringify(e.edit_logs||[])})'>✏️ 重新編輯金額</button>`; // v3.7 月初移入不顯示編輯
 
     return `
       <div class="petty-row">

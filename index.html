@@ -314,7 +314,11 @@
     </div>
     <div class="row">
       <label>密碼</label>
-      <input id="loginPassword" type="password" inputmode="numeric" placeholder="輸入密碼" autocomplete="off">
+      <div style="position:relative;">
+        <input id="loginPassword" type="password" inputmode="numeric" placeholder="輸入密碼" autocomplete="off" style="padding-right:52px;width:100%;box-sizing:border-box;">
+        <button type="button" id="togglePwdBtn" onclick="togglePwdVisibility()" tabindex="-1"
+          style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:20px;color:var(--text-sub);padding:4px;line-height:1;">👁</button>
+      </div>
     </div>
     <button class="login-btn" onclick="doLogin()">登入</button>
     <div id="loginError" class="login-error"></div>
@@ -336,6 +340,7 @@
       <button class="btn-add-item" onclick="openAddItemModal()">+ 新增物品</button>
       <button id="adminBtn" class="btn-admin" onclick="openUserAdmin()" style="display:none;">👤 人員</button>
       <button class="btn-finance" onclick="openFinanceScreen()">💰 金流</button>
+      <button class="btn-finance" onclick="openKolScreen()" style="background:linear-gradient(135deg,#1a3d4a,#2a5b6d);border-color:#3a8b9b;color:#b8ecf5;" title="KOL探店排程">🎬 KOL</button>
       <button onclick="logout()">登出</button>
     </div>
     <!-- v2.9: 分類 Tabs 移入 top-bar 內，整個 top-bar 一起 sticky -->
@@ -902,6 +907,23 @@ async function loadUserSelect() {
   }
 }
 
+function togglePwdVisibility() {
+  const inp = document.getElementById('loginPassword');
+  const btn = document.getElementById('togglePwdBtn');
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    inp.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+async function openKolScreen() {
+  await openFinanceScreen();
+  switchFinanceTab('kol');
+}
+
 async function doLogin() {
   const username = document.getElementById('loginUser').value;
   const password = document.getElementById('loginPassword').value;
@@ -915,6 +937,7 @@ async function doLogin() {
       APP.user = res.user;
       sessionStorage.setItem('user', JSON.stringify(res.user));
       await initApp();
+      checkKolReminder(); // v3.6: 每次登入都檢查隔日 KOL 提醒
     } else {
       document.getElementById('loginError').textContent = res.message;
       document.getElementById('loginPassword').value = '';

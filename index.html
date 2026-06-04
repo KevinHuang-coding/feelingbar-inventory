@@ -341,7 +341,7 @@
       <button class="btn-add-item" onclick="openAddItemModal()">+ 新增物品</button>
       <button id="adminBtn" class="btn-admin" onclick="openUserAdmin()" style="display:none;">👤 人員</button>
       <button class="btn-finance" onclick="openFinanceScreen()">💰 金流</button>
-      <button class="btn-finance" onclick="openKolScreen()" style="background:linear-gradient(135deg,#1a3d4a,#2a5b6d);border-color:#3a8b9b;color:#b8ecf5;" title="KOL探店排程">🎬 KOL</button>
+      <button class="btn-finance" onclick="openKolScreen()" style="background:linear-gradient(135deg,#1a3d4a,#2a5b6d);border-color:#3a8b9b;color:#b8ecf5;" title="KOL&重要活動排程">🎬 KOL</button>
       <button onclick="logout()">登出</button>
     </div>
     <!-- v2.9: 分類 Tabs 移入 top-bar 內，整個 top-bar 一起 sticky -->
@@ -532,7 +532,7 @@
     <div class="cat-tabs" style="margin-top:8px;">
       <button class="cat-tab active" id="tabRevenue" onclick="switchFinanceTab('revenue')">📊 門市營收</button>
       <button class="cat-tab" id="tabPettyCash" onclick="switchFinanceTab('pettyCash')">🪙 零用金</button>
-      <button class="cat-tab" id="tabKol" onclick="switchFinanceTab('kol')">🎬 KOL探店</button>
+      <button class="cat-tab" id="tabKol" onclick="switchFinanceTab('kol')">🎬 KOL&重要活動排程</button>
     </div>
   </div>
   <div class="container">
@@ -572,7 +572,7 @@
     <!-- ====== KOL 探店排程 Panel ====== -->
     <div id="kolPanel" style="display:none;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-        <span style="font-size:14px;color:var(--text-sub);">🎬 KOL 探店排程管理</span>
+        <span style="font-size:14px;color:var(--text-sub);">🎬 KOL & 重要活動排程管理</span>
         <button class="btn-action btn-purchase" style="padding:8px 14px;font-size:13px;" onclick="openAddKolModal()">＋ 新增排程</button>
       </div>
       <div id="kolList"><div style="text-align:center;color:var(--text-faint);padding:20px;">載入中...</div></div>

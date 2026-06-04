@@ -2141,11 +2141,29 @@ function renderPettyCashList(data) {
 
   listEl.innerHTML = entries.map(e => {
     const isCarry = e.type === '月初結餘移入'; // v3.7
-    const isExp = !isCarry && e.type === '支出';
-    const sign = isCarry ? '↩' : isExp ? '−' : '+';
+
+    // v3.8: 月初結餘移入獨立渲染（開帳格式，不顯示 ± 金額）
+    if (isCarry) {
+      const balColor = e.balance_after >= 0 ? '#58D68D' : '#F5B041';
+      return `
+        <div class="petty-row" style="opacity:0.85;border-left:3px solid #2a5a7a;background:linear-gradient(90deg,rgba(26,45,61,0.6),transparent);">
+          <div class="petty-type-badge 月初結餘移入">月初結餘移入</div>
+          <div class="petty-info">
+            <div class="petty-date">${escapeHtml(e.date||'')}　·　系統自動移入</div>
+            <div class="petty-desc">${escapeHtml(e.desc||'前月結餘移入')}</div>
+            <div class="petty-balance-after">開帳餘額：<span style="color:${balColor};font-weight:600;">${fmtMoney(e.balance_after)}</span></div>
+          </div>
+          <div class="petty-amount-col">
+            <div class="petty-amount" style="color:var(--text-sub);font-size:12px;text-align:right;">↩ 開帳</div>
+          </div>
+        </div>`;
+    }
+
+    const isExp = e.type === '支出';
+    const sign = isExp ? '−' : '+';
 
     let invoiceHtml = '';
-    if (isExp && !isCarry) {
+    if (isExp) {
       if (e.invoice_code) {
         invoiceHtml = e.invoice_collected
           ? `<span class="petty-invoice ok">🧾 發票後五碼：${escapeHtml(e.invoice_code)}　✓ 已收納</span>`

@@ -569,6 +569,7 @@
         <div class="petty-balance-label">零用金目前餘額</div>
         <div class="petty-balance-amount" id="pettyCashBalance">$0</div>
         <div class="petty-balance-note" id="pettyCashBalanceNote"></div>
+        <div class="petty-balance-note" id="pettyReimburseSummary" style="margin-top:5px;"></div>
       </div>
       <!-- 操作按鈕 -->
       <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -2206,6 +2207,17 @@ function renderPettyCashBalance(data) {
   } else {
     noteEl.textContent = entries.length ? '✓ 所有發票均已收納完成' : '';
     noteEl.className = 'petty-balance-note';
+  }
+  // v3.10 撥補總額摘要（本月支出）
+  const exps = entries.filter(e => e.type === '支出');
+  const reimbursedSum = exps.filter(e => e.reimbursed).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const pendingExps = exps.filter(e => !e.reimbursed);
+  const pendingSum = pendingExps.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const sumEl = document.getElementById('pettyReimburseSummary');
+  if (sumEl) {
+    sumEl.innerHTML = exps.length
+      ? `💰 本月已撥補 <strong>${fmtMoney(reimbursedSum)}</strong>　·　⏳ 尚待撥補 <strong style="color:${pendingSum > 0 ? '#F5B041' : 'inherit'};">${fmtMoney(pendingSum)}</strong>（${pendingExps.length} 筆）`
+      : '';
   }
 }
 

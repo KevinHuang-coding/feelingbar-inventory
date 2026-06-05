@@ -548,6 +548,16 @@
         <button class="btn-action" style="flex:1;padding:12px 0;font-size:13px;" onclick="openAddRevenueModal()">＋ 新增當日營收</button>
         <button class="btn-action btn-purchase" style="flex:1;padding:12px 0;font-size:13px;" onclick="openAtmModal()">🏧 ATM 存款紀錄</button>
       </div>
+      <!-- v3.9 開店/交接點鈔 -->
+      <div style="margin-bottom:12px;padding:12px;border:1px solid #2a4a5c;border-radius:10px;background:#16242e;">
+        <div style="font-size:13px;color:#9fdcc0;font-weight:600;margin-bottom:8px;">🪙 開店 / 交接點鈔對帳</div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-action" style="flex:1;padding:11px 0;font-size:13px;background:linear-gradient(135deg,#2a6049,#1f4a38);border-color:#3a8b6b;" onclick="openCashCountModal('午開')">☀️ 午班開店</button>
+          <button class="btn-action" style="flex:1;padding:11px 0;font-size:13px;background:linear-gradient(135deg,#1a3d5c,#16304a);border-color:#3a6b9b;" onclick="openCashCountModal('晚開')">🌆 晚班開店</button>
+          <button class="btn-action" style="flex:1;padding:11px 0;font-size:13px;background:linear-gradient(135deg,#4a2a5c,#3a1f4a);border-color:#8b5cb0;" onclick="openCashCountModal('晚關')">🌙 晚班關店</button>
+        </div>
+        <div id="cashCountList" style="margin-top:10px;"></div>
+      </div>
       <!-- 每日列表 -->
       <div id="revenueList"></div>
     </div>
@@ -623,6 +633,54 @@
     <div class="modal-actions">
       <button class="btn-cancel" onclick="closeAddRevenueModal()">取消</button>
       <button class="btn-confirm" onclick="submitAddRevenue()">確定送出</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Modal：開店/交接點鈔（v3.9） ============ -->
+<div id="cashCountModal" class="modal-overlay hidden">
+  <div class="modal-box" style="max-height:90vh;overflow-y:auto;">
+    <h3 id="ccTitle">🪙 開店點鈔</h3>
+    <div class="form-row">
+      <label for="ccDate">日期</label>
+      <input id="ccDate" type="date" onchange="ccRefreshExpect()">
+    </div>
+    <div id="ccShiftBadge" style="margin-bottom:10px;font-size:13px;color:var(--text-sub);"></div>
+
+    <div style="font-weight:600;color:#9fdcc0;font-size:13px;margin:6px 0;">🗄️ 一樓錢櫃</div>
+    <div id="ccDrawer"></div>
+    <div style="background:var(--bg-stat);border-radius:8px;padding:8px 12px;margin:4px 0 14px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;color:var(--text-sub);">錢櫃現金總額</span>
+      <strong id="ccDrawerTotal" style="color:#1ABC9C;font-size:16px;">$0</strong>
+    </div>
+
+    <div style="font-weight:600;color:#9fdcc0;font-size:13px;margin:6px 0;">🔐 保險櫃</div>
+    <div id="ccSafe"></div>
+    <div style="background:var(--bg-stat);border-radius:8px;padding:8px 12px;margin:4px 0 14px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:13px;color:var(--text-sub);">保險櫃現金總額</span>
+      <strong id="ccSafeTotal" style="color:#1ABC9C;font-size:16px;">$0</strong>
+    </div>
+
+    <div style="background:#15323a;border:1px solid #2a6049;border-radius:8px;padding:11px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:14px;color:#cfe;font-weight:700;">錢櫃 ＋ 保險櫃 總和</span>
+      <strong id="ccGrandTotal" style="color:#1ABC9C;font-size:22px;">$0</strong>
+    </div>
+
+    <div id="ccExpectBox" style="border-radius:8px;padding:10px 14px;margin-bottom:10px;font-size:13px;line-height:1.7;background:#1c2c1c;border:1px solid #3a5;color:#cfc;">ℹ️ 載入中…</div>
+
+    <div class="form-row" id="ccCoRow" style="display:none;">
+      <label for="ccCoOperator">共同確認人（午晚班交接）</label>
+      <input id="ccCoOperator" type="text" placeholder="例：晚班接班人員姓名">
+    </div>
+
+    <div class="form-row" id="ccReasonRow" style="display:none;">
+      <label for="ccReason" style="color:var(--danger);">⚠️ 差額原因（必填）</label>
+      <textarea id="ccReason" rows="2" placeholder="說明溢出 / 短少的原因，例如找錯錢、零用金未登錄、存款未記等" style="width:100%;box-sizing:border-box;padding:8px;border-radius:8px;background:var(--bg-stat);border:1px solid var(--danger);color:var(--text-main);font-size:14px;resize:vertical;"></textarea>
+    </div>
+
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeCashCountModal()">取消</button>
+      <button class="btn-confirm" onclick="submitCashCount()">確定送出</button>
     </div>
   </div>
 </div>
@@ -1710,6 +1768,7 @@ async function loadRevenueData(bgSync = false) {
     FINANCE.revenueData = data;
     renderRevenueSummary(data);
     renderRevenueList(data);
+    loadCashCounts();
   } catch (e) {
     if (!bgSync) {
       document.getElementById('revenueSummary').innerHTML =
@@ -2521,6 +2580,191 @@ async function checkKolReminder() {
   } catch(e) { /* 靜默失敗 */ }
 }
 
+
+
+
+/* =============================================================
+   v3.9 開店 / 交接點鈔對帳
+   ============================================================= */
+const CC_DENOMS = [
+  { k: '2000', v: 2000 }, { k: '1000', v: 1000 }, { k: '500', v: 500 },
+  { k: '200', v: 200 }, { k: '100', v: 100 },
+  { k: '50', v: 50 }, { k: '10', v: 10 }, { k: '5', v: 5 }, { k: '1', v: 1 }
+];
+let CC_STATE = { shift: '午開', expected: null, basis: '', warning: '' };
+let CC_SUBMITTING = false;
+
+function ccDenomRows(prefix) {
+  return CC_DENOMS.map(function (d) {
+    const label = d.v >= 100 ? ('$' + d.v + ' 鈔票') : ('$' + d.v + ' 銅板');
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">' +
+      '<span style="width:92px;font-size:13px;color:var(--text-sub);">' + label + '</span>' +
+      '<input id="' + prefix + '_' + d.k + '" type="number" inputmode="numeric" min="0" placeholder="0" ' +
+      'style="flex:1;min-width:0;" oninput="ccRecalc()"> ' +
+      '<span style="font-size:12px;color:var(--text-faint);">張/枚</span>' +
+      '<span id="' + prefix + '_' + d.k + '_amt" style="width:84px;text-align:right;font-size:12px;color:var(--text-faint);">$0</span>' +
+      '</div>';
+  }).join('');
+}
+
+function ccReadGroup(prefix) {
+  const o = {};
+  CC_DENOMS.forEach(function (d) { o[d.k] = Number(document.getElementById(prefix + '_' + d.k).value) || 0; });
+  return o;
+}
+
+function ccGroupTotal(prefix) {
+  let t = 0;
+  CC_DENOMS.forEach(function (d) {
+    const n = Number(document.getElementById(prefix + '_' + d.k).value) || 0;
+    t += n * d.v;
+    const amtEl = document.getElementById(prefix + '_' + d.k + '_amt');
+    if (amtEl) amtEl.textContent = fmtMoney(n * d.v);
+  });
+  return t;
+}
+
+function ccRecalc() {
+  const dT = ccGroupTotal('ccD'), sT = ccGroupTotal('ccS');
+  const grand = dT + sT;
+  document.getElementById('ccDrawerTotal').textContent = fmtMoney(dT);
+  document.getElementById('ccSafeTotal').textContent = fmtMoney(sT);
+  document.getElementById('ccGrandTotal').textContent = fmtMoney(grand);
+  ccUpdateExpect(grand);
+}
+
+function ccUpdateExpect(grand) {
+  const box = document.getElementById('ccExpectBox');
+  const reasonRow = document.getElementById('ccReasonRow');
+  if (CC_STATE.expected === null || CC_STATE.expected === undefined) {
+    box.style.background = '#1c2c1c'; box.style.border = '1px solid #3a5'; box.style.color = '#cfc';
+    box.innerHTML = 'ℹ️ ' + escapeHtml(CC_STATE.basis || '本次作為基準，無前一筆可比對');
+    reasonRow.style.display = 'none';
+    return;
+  }
+  const diff = grand - CC_STATE.expected;
+  let html = '預期金額：<strong>' + fmtMoney(CC_STATE.expected) + '</strong><br>' +
+    '<span style="color:var(--text-faint);font-size:12px;">' + escapeHtml(CC_STATE.basis) + '</span>';
+  if (CC_STATE.warning) html += '<br><span style="color:#f5b041;">⚠️ ' + escapeHtml(CC_STATE.warning) + '</span>';
+  html += '<br>差額：<strong style="font-size:16px;">' + (diff > 0 ? '+' : '') + fmtMoney(diff) + '</strong>';
+  if (diff === 0) {
+    box.style.background = '#15323a'; box.style.border = '1px solid #2a6049'; box.style.color = '#cfe';
+    html += ' ✅ 吻合';
+    reasonRow.style.display = 'none';
+  } else {
+    box.style.background = '#3a1c1c'; box.style.border = '1px solid #a33'; box.style.color = '#fcc';
+    html += ' ⚠️ ' + (diff > 0 ? '溢出' : '短少') + '，請填寫差額原因';
+    reasonRow.style.display = '';
+  }
+  box.innerHTML = html;
+}
+
+async function ccRefreshExpect() {
+  try {
+    const ctx = await api('getCashCountContext', { date: document.getElementById('ccDate').value, shift_type: CC_STATE.shift }, 'GET', true);
+    CC_STATE.expected = (ctx && ctx.expected !== undefined) ? ctx.expected : null;
+    CC_STATE.basis = ctx ? (ctx.basis || '') : '';
+    CC_STATE.warning = ctx ? (ctx.warning || '') : '';
+  } catch (e) {
+    CC_STATE.expected = null; CC_STATE.basis = '無法取得預期值：' + e.message; CC_STATE.warning = '';
+  }
+  ccRecalc();
+}
+
+async function openCashCountModal(shiftType) {
+  CC_STATE = { shift: shiftType, expected: null, basis: '', warning: '' };
+  const titleMap = { '午開': '☀️ 午班開店點鈔', '晚開': '🌆 晚班開店點鈔', '晚關': '🌙 晚班關店點鈔' };
+  document.getElementById('ccTitle').textContent = '🪙 ' + (titleMap[shiftType] || shiftType);
+  const today = todayStr();
+  const mp = FINANCE.currentMonth || today.substring(0, 7);
+  document.getElementById('ccDate').value = today.startsWith(mp) ? today : mp + '-01';
+  document.getElementById('ccShiftBadge').innerHTML = '班別：<span style="padding:2px 10px;border-radius:10px;background:#2a6049;color:#aee;font-weight:600;">' + escapeHtml(shiftType) + '</span>';
+  document.getElementById('ccDrawer').innerHTML = ccDenomRows('ccD');
+  document.getElementById('ccSafe').innerHTML = ccDenomRows('ccS');
+  document.getElementById('ccCoRow').style.display = (shiftType === '晚開') ? '' : 'none';
+  document.getElementById('ccCoOperator').value = '';
+  document.getElementById('ccReason').value = '';
+  document.getElementById('ccReasonRow').style.display = 'none';
+  document.getElementById('cashCountModal').classList.remove('hidden');
+  ccRecalc();
+  await ccRefreshExpect();
+}
+
+function closeCashCountModal() {
+  document.getElementById('cashCountModal').classList.add('hidden');
+}
+
+async function submitCashCount() {
+  if (CC_SUBMITTING) return;
+  const date = document.getElementById('ccDate').value;
+  if (!date) { toast('請選擇日期', 'error'); return; }
+  const drawer = ccReadGroup('ccD'), safe = ccReadGroup('ccS');
+  const grand = ccGroupTotal('ccD') + ccGroupTotal('ccS');
+  const reason = document.getElementById('ccReason').value.trim();
+  const coOp = document.getElementById('ccCoOperator').value.trim();
+
+  if (CC_STATE.expected !== null && CC_STATE.expected !== undefined) {
+    const diff = grand - CC_STATE.expected;
+    if (diff !== 0 && !reason) {
+      toast('差額不為 0，請填寫差額原因', 'error');
+      document.getElementById('ccReasonRow').style.display = '';
+      return;
+    }
+  }
+  if (grand === 0 && !confirm('目前點鈔總額為 $0，確定要送出嗎？')) return;
+
+  CC_SUBMITTING = true;
+  try {
+    const res = await api('addCashCount', {
+      date: date, shift_type: CC_STATE.shift, drawer: drawer, safe: safe,
+      diff_reason: reason, operator: APP.user.username, co_operator: coOp, month: date.substring(0, 7)
+    }, 'POST');
+    if (res && res.needReason) {
+      CC_STATE.expected = res.expected;
+      CC_STATE.basis = res.basis || CC_STATE.basis;
+      CC_STATE.warning = res.warning || '';
+      ccRecalc();
+      toast('差額不為 0，請填寫差額原因', 'error');
+      document.getElementById('ccReasonRow').style.display = '';
+      CC_SUBMITTING = false;
+      return;
+    }
+    const diffMsg = (res && res.diff) ? ('，差額 ' + fmtMoney(res.diff)) : '，金額吻合';
+    toast('✅ 點鈔已記錄' + diffMsg, 'success');
+    closeCashCountModal();
+    loadCashCounts();
+  } catch (e) {
+    toast('送出失敗：' + e.message, 'error');
+  } finally {
+    CC_SUBMITTING = false;
+  }
+}
+
+async function loadCashCounts() {
+  const box = document.getElementById('cashCountList');
+  if (!box) return;
+  try {
+    const data = await api('getCashCounts', { month: FINANCE.currentMonth }, 'GET', true);
+    const recs = (data && data.records) || [];
+    if (!recs.length) { box.innerHTML = ''; return; }
+    const emo = { '午開': '☀️', '晚開': '🌆', '晚關': '🌙' };
+    box.innerHTML = '<div style="font-size:12px;color:var(--text-faint);margin:4px 0 6px;">最近點鈔紀錄</div>' +
+      recs.slice(0, 12).map(function (r) {
+        const hasDiff = (r.diff !== null && r.diff !== 0);
+        const diffTxt = (r.expected === null) ? '基準' : (r.diff === 0 ? '✅ 吻合' : ((r.diff > 0 ? '+' : '') + fmtMoney(r.diff)));
+        const diffColor = (r.expected === null) ? '#8ab' : (r.diff === 0 ? '#1ABC9C' : '#e57');
+        return '<div style="border:1px solid ' + (hasDiff ? '#a33' : '#2a3a44') + ';border-radius:8px;padding:8px 10px;margin-bottom:6px;background:' + (hasDiff ? '#2a1818' : '#16242e') + ';">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span style="font-size:13px;color:#cde;">' + (emo[r.shift_type] || '') + ' ' + escapeHtml(r.date) + ' ' + escapeHtml(r.shift_type) + '</span>' +
+          '<strong style="color:#cfe;">' + fmtMoney(r.grand_total) + '</strong></div>' +
+          '<div style="display:flex;justify-content:space-between;margin-top:3px;font-size:12px;color:var(--text-faint);">' +
+          '<span>櫃 ' + fmtMoney(r.drawer_total) + '・箱 ' + fmtMoney(r.safe_total) + '・' + escapeHtml(r.operator || '') + (r.co_operator ? ('／' + escapeHtml(r.co_operator)) : '') + '</span>' +
+          '<span style="color:' + diffColor + ';font-weight:600;">' + diffTxt + '</span></div>' +
+          (hasDiff && r.diff_reason ? '<div style="margin-top:4px;font-size:12px;color:#fbb;">📝 ' + escapeHtml(r.diff_reason) + '</div>' : '') +
+          '</div>';
+      }).join('');
+  } catch (e) { box.innerHTML = ''; }
+}
 
 </script>
 </body>

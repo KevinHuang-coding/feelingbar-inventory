@@ -2795,7 +2795,8 @@ async function loadCashCounts() {
     // v3.14 固定排序：整串由下至上＝最舊在底、最新在頂。日期新到舊置頂；
     // 同日內由上至下為 晚關→晚開→午開（即由下往上讀正好是 午開→晚開→晚關），不受實際 keyin 時間影響。
     const shiftRank = { '午開': 1, '晚開': 2, '晚關': 3 };
-    function ccHM(ts) { var t = String(ts || '').split(' ')[1]; if (!t) return ''; var q = t.split(':'); return ('0' + (q[0] || '0')).slice(-2) + ':' + ('0' + (q[1] || '0')).slice(-2); }
+    // 顯示實際 keyin 的「月/日 時:分」，讓跨夜晚關能看出實際 keyin 到隔天凌晨
+    function ccHM(ts) { var parts = String(ts || '').split(' '); if (parts.length < 2) return ''; var d = parts[0].split('-'); var q = parts[1].split(':'); var md = (d.length >= 3) ? (('0' + d[1]).slice(-2) + '/' + ('0' + d[2]).slice(-2)) : ''; var hm = ('0' + (q[0] || '0')).slice(-2) + ':' + ('0' + (q[1] || '0')).slice(-2); return (md ? md + ' ' : '') + hm; }
     const sortedRecs = recs.slice().sort(function (a, b) {
       if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
       var ra = shiftRank[a.shift_type] || 9, rb = shiftRank[b.shift_type] || 9;

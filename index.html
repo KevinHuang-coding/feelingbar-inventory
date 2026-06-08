@@ -778,9 +778,13 @@
       <label for="atmDate">存款日期</label>
       <input id="atmDate" type="date">
     </div>
-    <div class="form-row">
-      <label for="atmAmount">存款金額 (NT$)</label>
-      <input id="atmAmount" type="number" inputmode="decimal" placeholder="例如：5000" min="0">
+    <div style="font-size:12px;color:var(--text-sub);background:#1A1F0F;border-radius:6px;padding:8px 12px;margin-bottom:8px;line-height:1.5;">
+      🔐 請輸入從<strong>保險箱提領、存入 ATM</strong> 的各面額數量（通常為千鈔）：
+    </div>
+    <div id="atmDenoms"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-stat);border-radius:8px;margin:6px 0 12px;">
+      <span style="font-size:14px;color:#F5B041;font-weight:700;">存入 ATM 金額合計</span>
+      <strong id="atmDenomTotal" style="font-size:18px;color:#F5B041;">$0</strong>
     </div>
     <div class="form-row">
       <label for="atmDepositor">實際執行存款人員</label>
@@ -1844,7 +1848,8 @@ function renderRevenueSummary(data) {
 
 function renderRevenueList(data) {
   const records = (data.records || []).map(r => ({ ...r, _type: 'revenue' }));
-  const atmRecs = (data.atmRecords || []).map(r => ({ ...r, _type: 'atm' }));
+  // v3.15：ATM 存款已移至「點鈔紀錄」列表顯示，營收序列不再列出 ATM
+  const atmRecs = [];
   const listEl = document.getElementById('revenueList');
 
   if (!records.length && !atmRecs.length) {
@@ -2026,9 +2031,38 @@ async function toggleAtmExcluded(depositId, currentExcluded) {
 }
 
 /* ---- ATM 存款 Modal ---- */
+function atmDenomRows() {
+  return CC_DENOMS.map(function (d) {
+    const label = d.v >= 100 ? ('$' + d.v + ' 鈔票') : ('$' + d.v + ' 銅板');
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">' +
+      '<span style="width:92px;font-size:13px;color:var(--text-sub);">' + label + '</span>' +
+      '<input id="atmD_' + d.k + '" type="number" inputmode="numeric" min="0" placeholder="0" style="flex:1;min-width:0;" oninput="atmRecalc()"> ' +
+      '<span style="font-size:12px;color:var(--text-faint);">張/枚</span>' +
+      '<span id="atmD_' + d.k + '_amt" style="width:84px;text-align:right;font-size:12px;color:var(--text-faint);">$0</span>' +
+      '</div>';
+  }).join('');
+}
+function atmRecalc() {
+  let t = 0;
+  CC_DENOMS.forEach(function (d) {
+    const n = Number(document.getElementById('atmD_' + d.k).value) || 0;
+    t += n * d.v;
+    const amtEl = document.getElementById('atmD_' + d.k + '_amt');
+    if (amtEl) amtEl.textContent = fmtMoney(n * d.v);
+  });
+  const tot = document.getElementById('atmDenomTotal');
+  if (tot) tot.textContent = fmtMoney(t);
+  return t;
+}
+function atmReadDenoms() {
+  const o = {};
+  CC_DENOMS.forEach(function (d) { o[d.k] = Number(document.getElementById('atmD_' + d.k).value) || 0; });
+  return o;
+}
 function openAtmModal() {
   document.getElementById('atmDate').value = todayStr();
-  document.getElementById('atmAmount').value = '';
+  document.getElementById('atmDenoms').innerHTML = atmDenomRows();
+  atmRecalc();
   document.getElementById('atmNote').value = '';
 
   const sel = document.getElementById('atmDepositor');
@@ -2046,29 +2080,31 @@ function closeAtmModal() {
 
 async function submitAtmDeposit() {
   const date = document.getElementById('atmDate').value;
-  const amount = Number(document.getElementById('atmAmount').value);
+  const denoms = atmReadDenoms();
+  const amount = CC_DENOMS.reduce(function (sum, d) { return sum + (Number(denoms[d.k]) || 0) * d.v; }, 0);
   const depositor = document.getElementById('atmDepositor').value;
   const note = document.getElementById('atmNote').value.trim();
 
   if (!date) { toast('請選擇存款日期', 'error'); return; }
-  if (!amount || amount <= 0) { toast('請填寫存款金額', 'error'); return; }
+  if (!amount || amount <= 0) { toast('請輸入存入 ATM 的面額數量', 'error'); return; }
   if (!depositor) { toast('請選擇實際執行存款的人員', 'error'); return; }
 
   // 1. 樂觀 UI
   const oldData = JSON.parse(JSON.stringify(FINANCE.revenueData || { records: [], atmRecords: [], summary: {}, cashBalance: 0 }));
   if (!FINANCE.revenueData) FINANCE.revenueData = { records: [], atmRecords: [], summary: {}, cashBalance: 0 };
-  const newAtm = { deposit_id: 'TEMP_' + Date.now(), date, amount, depositor, recorder: APP.user.username, note, timestamp: new Date().toISOString() };
+  const newAtm = { deposit_id: 'TEMP_' + Date.now(), date, amount, depositor, recorder: APP.user.username, note, denoms, biz_date: date, timestamp: new Date().toISOString() };
   FINANCE.revenueData.atmRecords = [newAtm, ...(FINANCE.revenueData.atmRecords || [])];
   const s = FINANCE.revenueData.summary || {};
   FINANCE.revenueData.summary = { ...s, atmTotal: (s.atmTotal||0) + amount };
   renderRevenueSummary(FINANCE.revenueData);
   renderRevenueList(FINANCE.revenueData);
+  if (typeof loadCashCounts === 'function') loadCashCounts();
   toast('✅ ATM 存款紀錄已新增，背景同步中…', 'success');
   closeAtmModal();
 
   // 2. 背景送 API
   try {
-    await api('addAtmDeposit', { date, amount, depositor, recorder: APP.user.username, note, month: date.substring(0, 7) }, 'POST');
+    await api('addAtmDeposit', { date, denoms, depositor, recorder: APP.user.username, note, month: date.substring(0, 7) }, 'POST');
     loadRevenueData(true).catch(() => {});
   } catch (e) {
     FINANCE.revenueData = oldData;
@@ -2790,21 +2826,34 @@ async function loadCashCounts() {
   try {
     const data = await api('getCashCounts', { month: FINANCE.currentMonth }, 'GET', true);
     const recs = (data && data.records) || [];
-    if (!recs.length) { box.innerHTML = ''; return; }
+    const atmAll = ((FINANCE.revenueData && FINANCE.revenueData.atmRecords) || []);
+    if (!recs.length && !atmAll.length) { box.innerHTML = ''; return; }
     const emo = { '午開': '☀️', '晚開': '🌆', '晚關': '🌙' };
-    // v3.14 固定排序：整串由下至上＝最舊在底、最新在頂。日期新到舊置頂；
-    // 同日內由上至下為 晚關→晚開→午開（即由下往上讀正好是 午開→晚開→晚關），不受實際 keyin 時間影響。
+    // 固定排序：整串由下至上＝最舊在底、最新在頂。業務日新到舊置頂；
+    // 同日內由上至下 ATM→晚關→晚開→午開（由下往上讀＝午開→晚開→晚關→ATM）。
     const shiftRank = { '午開': 1, '晚開': 2, '晚關': 3 };
-    // 顯示實際 keyin 的「月/日 時:分」，讓跨夜晚關能看出實際 keyin 到隔天凌晨
     function ccHM(ts) { var parts = String(ts || '').split(' '); if (parts.length < 2) return ''; var d = parts[0].split('-'); var q = parts[1].split(':'); var md = (d.length >= 3) ? (('0' + d[1]).slice(-2) + '/' + ('0' + d[2]).slice(-2)) : ''; var hm = ('0' + (q[0] || '0')).slice(-2) + ':' + ('0' + (q[1] || '0')).slice(-2); return (md ? md + ' ' : '') + hm; }
-    const sortedRecs = recs.slice().sort(function (a, b) {
-      if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
-      var ra = shiftRank[a.shift_type] || 9, rb = shiftRank[b.shift_type] || 9;
-      if (ra !== rb) return rb - ra;
-      return String(b.timestamp).localeCompare(String(a.timestamp));
+    // 點鈔 + ATM提領 合併（ATM 以業務日歸組、rank=4 排在晚關上方）
+    const merged = recs.map(function (r) { return { _atm: false, gday: String(r.date || ''), ts: String(r.timestamp || ''), rank: shiftRank[r.shift_type] || 9, r: r }; })
+      .concat(atmAll.map(function (a) { return { _atm: true, gday: String(a.biz_date || a.date || ''), ts: String(a.timestamp || ''), rank: 4, a: a }; }));
+    merged.sort(function (x, y) {
+      if (x.gday !== y.gday) return String(y.gday).localeCompare(String(x.gday));
+      if (x.rank !== y.rank) return y.rank - x.rank;
+      return String(y.ts).localeCompare(String(x.ts));
     });
     box.innerHTML = '<div style="font-size:12px;color:var(--text-faint);margin:4px 0 6px;">最近點鈔紀錄</div>' +
-      sortedRecs.slice(0, 12).map(function (r) {
+      merged.slice(0, 16).map(function (c) {
+        if (c._atm) {
+          const a = c.a;
+          const exc = !!a.excluded;
+          return '<div style="border:1px dashed #6b541a;border-radius:8px;padding:8px 10px;margin-bottom:6px;background:#241f0f;' + (exc ? 'opacity:0.5;' : '') + '">' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+            '<span style="font-size:13px;color:#F5B041;">🏧 ' + escapeHtml(String(a.biz_date || a.date || '')) + ' ATM存款 <span style="color:#caa46a;font-weight:400;font-size:12px;">' + escapeHtml(ccHM(a.timestamp)) + '</span>' + (exc ? ' <span style="font-size:10px;">(暫不計入)</span>' : '') + '</span>' +
+            '<strong style="color:#F5B041;">− ' + fmtMoney(a.amount) + '</strong></div>' +
+            '<div style="margin-top:3px;font-size:12px;color:var(--text-faint);">🔐 保險箱提領存入ATM・執行：' + escapeHtml(a.depositor || '-') + (a.note ? '・' + escapeHtml(a.note) : '') + '</div>' +
+            '</div>';
+        }
+        const r = c.r;
         const hasDiff = (r.diff !== null && r.diff !== 0);
         const diffTxt = (r.expected === null) ? '基準' : (r.diff === 0 ? '✅ 吻合' : ((r.diff > 0 ? '+' : '') + fmtMoney(r.diff)));
         const diffColor = (r.expected === null) ? '#8ab' : (r.diff === 0 ? '#1ABC9C' : '#e57');

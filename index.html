@@ -2792,14 +2792,23 @@ async function loadCashCounts() {
     const recs = (data && data.records) || [];
     if (!recs.length) { box.innerHTML = ''; return; }
     const emo = { '午開': '☀️', '晚開': '🌆', '晚關': '🌙' };
+    // v3.14 固定排序：日期新到舊；同日內依班別 午開→晚開→晚關（不再受實際 keyin 時間影響）
+    const shiftRank = { '午開': 1, '晚開': 2, '晚關': 3 };
+    function ccHM(ts) { var t = String(ts || '').split(' ')[1]; if (!t) return ''; var q = t.split(':'); return ('0' + (q[0] || '0')).slice(-2) + ':' + ('0' + (q[1] || '0')).slice(-2); }
+    const sortedRecs = recs.slice().sort(function (a, b) {
+      if (a.date !== b.date) return String(b.date).localeCompare(String(a.date));
+      var ra = shiftRank[a.shift_type] || 9, rb = shiftRank[b.shift_type] || 9;
+      if (ra !== rb) return ra - rb;
+      return String(a.timestamp).localeCompare(String(b.timestamp));
+    });
     box.innerHTML = '<div style="font-size:12px;color:var(--text-faint);margin:4px 0 6px;">最近點鈔紀錄</div>' +
-      recs.slice(0, 12).map(function (r) {
+      sortedRecs.slice(0, 12).map(function (r) {
         const hasDiff = (r.diff !== null && r.diff !== 0);
         const diffTxt = (r.expected === null) ? '基準' : (r.diff === 0 ? '✅ 吻合' : ((r.diff > 0 ? '+' : '') + fmtMoney(r.diff)));
         const diffColor = (r.expected === null) ? '#8ab' : (r.diff === 0 ? '#1ABC9C' : '#e57');
         return '<div style="border:1px solid ' + (hasDiff ? '#a33' : '#2a3a44') + ';border-radius:8px;padding:8px 10px;margin-bottom:6px;background:' + (hasDiff ? '#2a1818' : '#16242e') + ';">' +
           '<div style="display:flex;justify-content:space-between;align-items:center;">' +
-          '<span style="font-size:13px;color:#cde;">' + (emo[r.shift_type] || '') + ' ' + escapeHtml(r.date) + ' ' + escapeHtml(r.shift_type) + '</span>' +
+          '<span style="font-size:13px;color:#cde;">' + (emo[r.shift_type] || '') + ' ' + escapeHtml(r.date) + ' ' + escapeHtml(r.shift_type) + ' <span style="color:#8ab;font-weight:400;font-size:12px;">' + escapeHtml(ccHM(r.timestamp)) + '</span></span>' +
           '<strong style="color:#cfe;">' + fmtMoney(r.grand_total) + '</strong></div>' +
           '<div style="display:flex;justify-content:space-between;margin-top:3px;font-size:12px;color:var(--text-faint);">' +
           '<span>櫃 ' + fmtMoney(r.drawer_total) + '・箱 ' + fmtMoney(r.safe_total) + '・' + escapeHtml(r.operator || '') + (r.co_operator ? ('／' + escapeHtml(r.co_operator)) : '') + '</span>' +

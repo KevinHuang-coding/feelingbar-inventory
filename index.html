@@ -2178,6 +2178,31 @@ async function submitEditRevenue() {
   }
 }
 
+/* ---- 點鈔修改歷程 Modal（沿用 revenueChangeLogModal）---- */
+async function openCashCountChangeLog(countId, dateStr, shift) {
+  if (!countId) { toast('此筆無法查詢歷程', 'error'); return; }
+  document.getElementById('changeLogDesc').textContent = `${dateStr} ${shift || ''} 點鈔的修改歷程`;
+  document.getElementById('changeLogList').innerHTML = '<div style="color:var(--text-faint);padding:16px;text-align:center;">載入中...</div>';
+  document.getElementById('revenueChangeLogModal').classList.remove('hidden');
+  try {
+    const log = await api('getCashCountLogs', { count_id: countId }, 'GET', true);
+    if (!log.length) {
+      document.getElementById('changeLogList').innerHTML = '<div style="color:var(--text-faint);padding:16px;text-align:center;">此筆點鈔尚無修改歷程</div>';
+      return;
+    }
+    document.getElementById('changeLogList').innerHTML = log.map(l => `
+      <div style="padding:10px 0;border-bottom:1px dashed var(--border);font-size:12px;">
+        <div style="color:var(--text-faint);">${escapeHtml(String(l.timestamp).substring(0,16))}　${escapeHtml(l.operator||'')}　·　${escapeHtml(l.change||'')}</div>
+        <div style="margin-top:4px;">原：<span style="color:#e29a9a;">${escapeHtml(l.old||'')}</span></div>
+        <div style="margin-top:2px;">新：<span style="color:#58D68D;">${escapeHtml(l.newv||'')}</span></div>
+        ${l.reason ? `<div style="margin-top:4px;color:var(--warn);">說明：${escapeHtml(l.reason)}</div>` : ''}
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('changeLogList').innerHTML = `<div style="color:var(--danger);padding:16px;text-align:center;">無法載入：${escapeHtml(e.message)}</div>`;
+  }
+}
+
 /* ---- 修改歷程 Modal ---- */
 async function openRevenueChangeLog(rowId, dateStr) {
   if (!rowId) { toast('此筆紀錄無法查詢歷程', 'error'); return; }
@@ -2865,6 +2890,7 @@ async function loadCashCounts() {
           '<span>櫃 ' + fmtMoney(r.drawer_total) + '・箱 ' + fmtMoney(r.safe_total) + '・' + escapeHtml(r.operator || '') + (r.co_operator ? ('／' + escapeHtml(r.co_operator)) : '') + '</span>' +
           '<span style="color:' + diffColor + ';font-weight:600;">' + diffTxt + '</span></div>' +
           (hasDiff && r.diff_reason ? '<div style="margin-top:4px;font-size:12px;color:#fbb;">📝 ' + escapeHtml(r.diff_reason) + '</div>' : '') +
+          '<div style="text-align:right;margin-top:6px;"><button onclick="openCashCountChangeLog(\'' + (r.count_id || '') + '\',\'' + escapeHtml(r.date) + '\',\'' + escapeHtml(r.shift_type) + '\')" style="font-size:11px;padding:3px 9px;border-radius:6px;border:1px solid #46627a;background:transparent;color:#9bc;cursor:pointer;">📋 修改紀錄</button></div>' +
           '</div>';
       }).join('');
   } catch (e) { box.innerHTML = ''; }

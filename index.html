@@ -279,6 +279,7 @@
   .petty-balance-card.kevin { background: linear-gradient(135deg, #2A1F3A, #432A5A); border: 1px solid #6A4A9A; }
   .petty-type-badge.kevinexp { background: #2E2140; color: #C9A8F5; border: 1px solid #5A3A8A; }
   .petty-type-badge.kevintop { background: #1F2A3E; color: #8AB8F5; border: 1px solid #3A4A7A; }
+  .petty-reimb-note { font-size: 11px; color: #8AB8F5; background: rgba(26,51,61,0.55); border-left: 3px solid #3a6b9b; padding: 5px 8px; margin-top: 5px; border-radius: 4px; line-height: 1.6; }
   .petty-info { flex: 1; min-width: 0; }
   .petty-date { font-size: 11px; color: var(--text-faint); }
   .petty-desc { font-size: 13px; color: var(--text-main); margin: 3px 0; word-break: break-word; font-weight: 500; }
@@ -2316,6 +2317,13 @@ function renderPettyCashBalance(data) {
   }
 }
 
+function _mmdd(d) { return String(d || '').slice(5).replace('-', '/'); }
+function renderReimbNote(e) {
+  const n = e.reimb_note; if (!n) return '';
+  const dates = (n.byDate || []).map(b => `${_mmdd(b.date)} 撥補 ${fmtMoney(b.amount)}（${b.count}筆）`).join('、');
+  const sign = (e.type === '儲值') ? '＋' : '−';
+  return `<div class="petty-reimb-note">💡 此列餘額已含撥補回補：上筆餘額 ${fmtMoney(n.prevBal)} ＋ ${dates} ${sign} 本筆 ${fmtMoney(e.amount)} ＝ <strong>${fmtMoney(n.finalBal)}</strong> ✓</div>`;
+}
 function renderPettyCashList(data) {
   const entries = data.entries || [];
   const listEl = document.getElementById('pettyCashList');
@@ -2388,6 +2396,7 @@ function renderPettyCashList(data) {
           <div class="petty-date">${escapeHtml(e.date || '')}　·　${escapeHtml(e.operator || '-')}${editedBadge}</div>
           <div class="petty-desc">${escapeHtml(e.desc || (e.type === '儲值' ? '零用金儲值' : '-'))}</div>
           <div class="petty-balance-after">餘額：${fmtMoney(e.balance_after)}</div>
+          ${renderReimbNote(e)}
           ${invoiceHtml}
           ${reimburseHtml}
           ${editBtn}

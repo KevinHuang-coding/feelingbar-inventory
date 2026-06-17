@@ -276,6 +276,9 @@
   .petty-type-badge.支出 { background: #3A2818; color: #F5B041; border: 1px solid #5A3820; }
   .petty-type-badge.儲值 { background: #1A3326; color: #58D68D; border: 1px solid #2A5A3A; }
   .petty-type-badge.月初結餘移入 { background: #1a2d3d; color: #60c8f0; border: 1px solid #2a5a7a; font-size:11px; }
+  .petty-balance-card.kevin { background: linear-gradient(135deg, #2A1F3A, #432A5A); border: 1px solid #6A4A9A; }
+  .petty-type-badge.kevinexp { background: #2E2140; color: #C9A8F5; border: 1px solid #5A3A8A; }
+  .petty-type-badge.kevintop { background: #1F2A3E; color: #8AB8F5; border: 1px solid #3A4A7A; }
   .petty-info { flex: 1; min-width: 0; }
   .petty-date { font-size: 11px; color: var(--text-faint); }
   .petty-desc { font-size: 13px; color: var(--text-main); margin: 3px 0; word-break: break-word; font-weight: 500; }
@@ -565,11 +568,17 @@
     <!-- ====== 零用金 Panel ====== -->
     <div id="pettyCashPanel" style="display:none;">
       <!-- 餘額卡片 -->
+      <!-- 餘額卡片（v3.22 雙保管人：店長 / Kevin） -->
       <div class="petty-balance-card">
-        <div class="petty-balance-label">零用金目前餘額</div>
-        <div class="petty-balance-amount" id="pettyCashBalance">$0</div>
-        <div class="petty-balance-note" id="pettyCashBalanceNote"></div>
-        <div class="petty-balance-note" id="pettyReimburseSummary" style="margin-top:5px;"></div>
+        <div class="petty-balance-label">店長保管之零用金餘額</div>
+        <div class="petty-balance-amount" id="pettyCashBalanceStore">$0</div>
+        <div class="petty-balance-note" id="pettyStoreNote"></div>
+        <div class="petty-balance-note" id="pettyStoreReimburse" style="margin-top:5px;"></div>
+      </div>
+      <div class="petty-balance-card kevin">
+        <div class="petty-balance-label">Kevin保管之零用金餘額</div>
+        <div class="petty-balance-amount" id="pettyCashBalanceKevin">$0</div>
+        <div class="petty-balance-note" id="pettyKevinReimburse" style="margin-top:5px;"></div>
       </div>
       <!-- 操作按鈕 -->
       <div style="display:flex;gap:8px;margin-bottom:12px;">
@@ -853,6 +862,13 @@
   <div class="modal-box">
     <h3 id="addPettyTitle">🪙 零用金記錄</h3>
     <input type="hidden" id="pettyType">
+    <div class="form-row">
+      <label>零用金來源</label>
+      <div style="display:flex;gap:8px;">
+        <label style="flex:1;display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="radio" name="pettySource" value="店長" checked> 店長保管</label>
+        <label style="flex:1;display:flex;align-items:center;gap:6px;font-weight:400;cursor:pointer;"><input type="radio" name="pettySource" value="Kevin"> Kevin保管</label>
+      </div>
+    </div>
     <div class="form-row">
       <label for="pettyDate">日期</label>
       <input id="pettyDate" type="date">
@@ -2247,7 +2263,7 @@ async function loadPettyCashData(bgSync = false) {
     renderPettyCashList(data);
   } catch (e) {
     if (!bgSync) {
-      document.getElementById('pettyCashBalance').textContent = '載入失敗';
+      document.getElementById('pettyCashBalanceStore').textContent = '載入失敗';
       document.getElementById('pettyCashList').innerHTML =
         `<div style="color:var(--danger);text-align:center;padding:16px;">無法載入零用金資料：${escapeHtml(e.message)}</div>`;
     }
@@ -2257,28 +2273,46 @@ async function loadPettyCashData(bgSync = false) {
 }
 
 function renderPettyCashBalance(data) {
-  const balance = data.balance || 0;
-  document.getElementById('pettyCashBalance').textContent = fmtMoney(balance);
+  // v3.22 雙 pool 餘額
+  const bySrc = data.balanceBySource || { '店長': (data.balance || 0), 'Kevin': 0 };
+  const storeBal = Number(bySrc['店長']) || 0;
+  const kevinBal = Number(bySrc['Kevin']) || 0;
+  const elS = document.getElementById('pettyCashBalanceStore');
+  const elK = document.getElementById('pettyCashBalanceKevin');
+  if (elS) elS.textContent = fmtMoney(storeBal);
+  if (elK) elK.textContent = fmtMoney(kevinBal);
+
   const entries = data.entries || [];
+  const srcOf = e => (e.source === 'Kevin' ? 'Kevin' : '店長');
+
+  // 店長卡：發票未收納提醒（沿用）
   const unpaid = entries.filter(e => e.type === '支出' && e.invoice_code && !e.invoice_collected);
-  const noteEl = document.getElementById('pettyCashBalanceNote');
-  if (unpaid.length > 0) {
-    noteEl.textContent = `⚠️ 有 ${unpaid.length} 筆發票尚未完成收納`;
-    noteEl.className = 'petty-balance-note warn';
-  } else {
-    noteEl.textContent = entries.length ? '✓ 所有發票均已收納完成' : '';
-    noteEl.className = 'petty-balance-note';
+  const noteEl = document.getElementById('pettyStoreNote');
+  if (noteEl) {
+    if (unpaid.length > 0) {
+      noteEl.textContent = `⚠️ 有 ${unpaid.length} 筆發票尚未完成收納`;
+      noteEl.className = 'petty-balance-note warn';
+    } else {
+      noteEl.textContent = entries.length ? '✓ 所有發票均已收納完成' : '';
+      noteEl.className = 'petty-balance-note';
+    }
   }
-  // v3.10 撥補總額摘要（本月支出）
-  const exps = entries.filter(e => e.type === '支出');
-  const reimbursedSum = exps.filter(e => e.reimbursed).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const pendingExps = exps.filter(e => !e.reimbursed);
-  const pendingSum = pendingExps.reduce((s, e) => s + (Number(e.amount) || 0), 0);
-  const sumEl = document.getElementById('pettyReimburseSummary');
-  if (sumEl) {
-    sumEl.innerHTML = exps.length
-      ? `💰 本月已撥補 <strong>${fmtMoney(reimbursedSum)}</strong>　·　⏳ 尚待撥補 <strong style="color:${pendingSum > 0 ? '#F5B041' : 'inherit'};">${fmtMoney(pendingSum)}</strong>（${pendingExps.length} 筆）`
-      : '';
+
+  // 撥補摘要（分 pool）
+  function reimburseLine(src) {
+    const exps = entries.filter(e => e.type === '支出' && srcOf(e) === src);
+    if (!exps.length) return '';
+    const done = exps.filter(e => e.reimbursed).reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    const pend = exps.filter(e => !e.reimbursed);
+    const pendSum = pend.reduce((s, e) => s + (Number(e.amount) || 0), 0);
+    return `💰 已撥補 <strong>${fmtMoney(done)}</strong>　·　⏳ 待撥補 <strong style="color:${pendSum > 0 ? '#F5B041' : 'inherit'};">${fmtMoney(pendSum)}</strong>（${pend.length} 筆）`;
+  }
+  const sEl = document.getElementById('pettyStoreReimburse');
+  if (sEl) sEl.innerHTML = reimburseLine('店長');
+  const kEl = document.getElementById('pettyKevinReimburse');
+  if (kEl) {
+    const line = reimburseLine('Kevin');
+    kEl.innerHTML = line ? ('小捲核銷後需轉還 Kevin → ' + line) : '';
   }
 }
 
@@ -2316,6 +2350,11 @@ function renderPettyCashList(data) {
 
     const isExp = e.type === '支出';
     const sign = isExp ? '−' : '+';
+    // v3.22：依 pool 標示來源
+    const _src = (e.source === 'Kevin') ? 'Kevin' : '店長';
+    let _badgeText = e.type, _badgeClass = e.type;
+    if (e.type === '支出') { _badgeText = _src + '支出'; _badgeClass = (_src === 'Kevin') ? 'kevinexp' : '支出'; }
+    else if (e.type === '儲值') { _badgeText = _src + '儲值'; _badgeClass = (_src === 'Kevin') ? 'kevintop' : '儲值'; }
 
     let invoiceHtml = '';
     if (isExp) {
@@ -2344,7 +2383,7 @@ function renderPettyCashList(data) {
 
     return `
       <div class="petty-row">
-        <div class="petty-type-badge ${e.type}">${e.type}</div>
+        <div class="petty-type-badge ${_badgeClass}">${_badgeText}</div>
         <div class="petty-info">
           <div class="petty-date">${escapeHtml(e.date || '')}　·　${escapeHtml(e.operator || '-')}${editedBadge}</div>
           <div class="petty-desc">${escapeHtml(e.desc || (e.type === '儲值' ? '零用金儲值' : '-'))}</div>
@@ -2363,6 +2402,7 @@ function renderPettyCashList(data) {
 /* ---- 新增零用金 Modal ---- */
 function openAddPettyModal(type) {
   document.getElementById('pettyType').value = type;
+  var _st = document.querySelector('input[name="pettySource"][value="店長"]'); if (_st) _st.checked = true;
   document.getElementById('addPettyTitle').textContent = type === '支出' ? '🪙 新增零用金支出' : '💵 零用金儲值';
   document.getElementById('pettyDate').value = todayStr();
   document.getElementById('pettyAmount').value = '';
@@ -2383,6 +2423,7 @@ function closeAddPettyModal() {
 
 async function submitAddPetty() {
   const type = document.getElementById('pettyType').value;
+  const source = ((document.querySelector('input[name="pettySource"]:checked') || {}).value) || '店長';
   const date = document.getElementById('pettyDate').value;
   const amount = Number(document.getElementById('pettyAmount').value);
   const desc = type === '支出'
@@ -2394,33 +2435,40 @@ async function submitAddPetty() {
   if (!amount || amount <= 0) { toast('請填寫金額', 'error'); return; }
   if (type === '支出' && !desc) { toast('請填寫支出明細', 'error'); return; }
 
-  // 支出超過餘額時警告
+  // 支出超過該 pool 餘額時警告（v3.22）
+  const _bySrc0 = (FINANCE.pettyCashData && FINANCE.pettyCashData.balanceBySource) || null;
   if (type === '支出') {
-    const curBalance = FINANCE.pettyCashData ? FINANCE.pettyCashData.balance : null;
+    const curBalance = _bySrc0 ? (Number(_bySrc0[source]) || 0)
+                               : (FINANCE.pettyCashData ? FINANCE.pettyCashData.balance : null);
     if (curBalance !== null && amount > curBalance) {
-      if (!confirm(`⚠️ 支出金額 ${fmtMoney(amount)} 超過現有零用金餘額 ${fmtMoney(curBalance)}，確定要繼續？`)) return;
+      const poolName = source === 'Kevin' ? 'Kevin' : '店長';
+      if (!confirm(`⚠️ 支出金額 ${fmtMoney(amount)} 超過${poolName}零用金餘額 ${fmtMoney(curBalance)}，確定要繼續？`)) return;
     }
   }
 
-  // 1. 樂觀 UI：計算新餘額，立刻更新畫面
-  const oldPettyData = JSON.parse(JSON.stringify(FINANCE.pettyCashData || { balance: 0, entries: [] }));
-  if (!FINANCE.pettyCashData) FINANCE.pettyCashData = { balance: 0, entries: [] };
-  const curBal = FINANCE.pettyCashData.balance || 0;
-  const newBal = type === '支出' ? curBal - amount : curBal + amount;
+  // 1. 樂觀 UI：依 pool 計算新餘額（v3.22）
+  const oldPettyData = JSON.parse(JSON.stringify(FINANCE.pettyCashData || { balance: 0, balanceBySource: { '店長': 0, 'Kevin': 0 }, entries: [] }));
+  if (!FINANCE.pettyCashData) FINANCE.pettyCashData = { balance: 0, balanceBySource: { '店長': 0, 'Kevin': 0 }, entries: [] };
+  if (!FINANCE.pettyCashData.balanceBySource) FINANCE.pettyCashData.balanceBySource = { '店長': FINANCE.pettyCashData.balance || 0, 'Kevin': 0 };
+  const bs = FINANCE.pettyCashData.balanceBySource;
+  const curPool = Number(bs[source]) || 0;
+  const newPool = type === '支出' ? curPool - amount : curPool + amount;
+  bs[source] = newPool;
+  FINANCE.pettyCashData.balance = (Number(bs['店長']) || 0) + (Number(bs['Kevin']) || 0);
   const newEntry = {
     entry_id: 'TEMP_' + Date.now(),
     date, type, amount,
-    balance_after: newBal,
+    balance_after: newPool,
     desc, invoice_code: invoice,
     invoice_collected: '否',
+    source,
     operator: APP.user.username,
     timestamp: new Date().toISOString()
   };
-  FINANCE.pettyCashData.balance = newBal;
   FINANCE.pettyCashData.entries = [newEntry, ...(FINANCE.pettyCashData.entries || [])];
   renderPettyCashBalance(FINANCE.pettyCashData);
   renderPettyCashList(FINANCE.pettyCashData);
-  toast(`✅ 零用金${type}已記錄，背景同步中…`, 'success');
+  toast(`✅ ${source}零用金${type}已記錄，背景同步中…`, 'success');
   closeAddPettyModal();
 
   // 2. 背景送 API
@@ -2428,6 +2476,7 @@ async function submitAddPetty() {
     await api('addPettyCashEntry', {
       date, type, amount, desc,
       invoice_code: invoice,
+      source,
       operator: APP.user.username,
       month: date.substring(0, 7)
     }, 'POST');

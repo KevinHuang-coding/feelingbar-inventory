@@ -1136,10 +1136,16 @@ function applyInitData(data) {
   }
 }
 
+// v3.25: loadInventory 請求流水號 —— 防止快速切換月份時，前一個月的慢回應蓋掉當前畫面（race condition）
+let _invLoadSeq = 0;
 async function loadInventory(silent) {
-  const data = await api('getInventory', { month: APP.currentMonth }, 'GET', silent);
+  const seq = ++_invLoadSeq;
+  const reqMonth = APP.currentMonth;
+  const data = await api('getInventory', { month: reqMonth }, 'GET', silent);
+  // 過期回應守門：請求送出後若又切了月份（流水號或月份已變），丟棄這包，不覆蓋畫面與快取
+  if (seq !== _invLoadSeq || reqMonth !== APP.currentMonth) return;
   APP.inventory = data.items;
-  // 同步更新快取
+  // 同步更新快取（已通過守門，確保只存當前月份的資料）
   try {
     const cached = JSON.parse(sessionStorage.getItem('init_data') || '{}');
     cached.inventory = data;

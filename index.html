@@ -872,7 +872,7 @@
       </div>
     </div>
     <div class="form-row">
-      <label for="pettyDate">日期</label>
+      <label for="pettyDate">發票開立日期</label>
       <input id="pettyDate" type="date">
     </div>
     <div class="form-row">
@@ -1757,6 +1757,16 @@ function fmtMoney(n) {
 }
 
 /* ---- 開啟金流管理頁 ---- */
+function financeMonthOptions(){
+  var base = (APP.monthList||[]).filter(function(m){return /^\d{4}-\d{2}$/.test(m);});
+  var set = {};
+  base.forEach(function(m){set[m]=1;});
+  var latest = base.length ? base[base.length-1] : '2026-06';
+  if (APP.currentMonth && /^\d{4}-\d{2}$/.test(APP.currentMonth) && APP.currentMonth > latest) latest = APP.currentMonth;
+  var y=2025, mo=12, cur='2025-12';
+  while(cur <= latest){ set[cur]=1; mo++; if(mo>12){mo=1;y++;} cur = y+'-'+String(mo).padStart(2,'0'); }
+  return Object.keys(set).sort();
+}
 async function openFinanceScreen() {
   APP._mainScrollY = window.scrollY || document.documentElement.scrollTop || 0;
   document.getElementById('mainScreen').style.display = 'none';
@@ -1767,7 +1777,7 @@ async function openFinanceScreen() {
   // 同步月份選單
   FINANCE.currentMonth = APP.currentMonth;
   const fSel = document.getElementById('financeMonthSelect');
-  fSel.innerHTML = (APP.monthList || []).map(m =>
+  fSel.innerHTML = financeMonthOptions().map(m =>
     `<option value="${m}"${m === FINANCE.currentMonth ? ' selected' : ''}>${m}</option>`
   ).join('');
 
@@ -2331,6 +2341,19 @@ function renderReimbNote(e) {
   const sign = (e.type === '儲值') ? '＋' : '−';
   return `<div class="petty-reimb-note">💡 此列餘額已含撥補回補：上筆餘額 ${fmtMoney(n.prevBal)} ＋ ${dates} ${sign} 本筆 ${fmtMoney(e.amount)} ＝ <strong>${fmtMoney(n.finalBal)}</strong> ✓</div>`;
 }
+function fmtKeyin(ts){
+  var s = String(ts==null?'':ts);
+  if(!s) return '—';
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/);
+  if(m) return m[1]+' '+m[2];
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+  var d = new Date(s);
+  if(!isNaN(d.getTime())){
+    var pad=n=>String(n).padStart(2,'0');
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+pad(d.getHours())+':'+pad(d.getMinutes());
+  }
+  return s.substring(0,16);
+}
 function renderPettyCashList(data) {
   const entries = data.entries || [];
   const listEl = document.getElementById('pettyCashList');
@@ -2400,7 +2423,7 @@ function renderPettyCashList(data) {
       <div class="petty-row">
         <div class="petty-type-badge ${_badgeClass}">${_badgeText}</div>
         <div class="petty-info">
-          <div class="petty-date">${escapeHtml(e.date || '')}　·　${escapeHtml(e.operator || '-')}${editedBadge}</div>
+          <div class="petty-date">🧾 發票開立日 ${escapeHtml(e.date || '')}　·　⌨️ keyin ${fmtKeyin(e.timestamp)}　·　${escapeHtml(e.operator || '-')}${editedBadge}</div>
           <div class="petty-desc">${escapeHtml(e.desc || (e.type === '儲值' ? '零用金儲值' : '-'))}</div>
           <div class="petty-balance-after">餘額：${fmtMoney(e.balance_after)}</div>
           ${renderReimbNote(e)}

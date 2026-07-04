@@ -1119,9 +1119,16 @@ function applyInitData(data) {
     .map(m => String(m || '').trim())
     .filter(m => /^\d{4}-\d{2}$/.test(m))
     .sort();
-  const latestMonth = APP.monthList.length
+  // v3.26: 預設月份封頂 —— 永不預設到未來月份（根治錯月 keyin 雪球）
+  const _d326 = new Date();
+  const _nowM326 = _d326.getFullYear() + '-' + String(_d326.getMonth() + 1).padStart(2, '0');
+  let latestMonth = APP.monthList.length
     ? APP.monthList[APP.monthList.length - 1]
     : (data.settings.CURRENT_MONTH || '');
+  if (latestMonth > _nowM326) {
+    const _past326 = APP.monthList.filter(m => m <= _nowM326);
+    latestMonth = _past326.length ? _past326[_past326.length - 1] : _nowM326;
+  }
   if (!APP.currentMonth || !APP.monthList.includes(APP.currentMonth)) {
     APP.currentMonth = latestMonth;
   }
@@ -1130,9 +1137,14 @@ function applyInitData(data) {
   sel.value = APP.currentMonth;
 
   if (data.inventory && data.inventory.items) {
-    APP.inventory = data.inventory.items;
-    renderCategoryTabs();
-    renderInventory();
+    // v3.26: 月份一致性守門 —— 後端回傳的庫存月份與所選月份不符時（如 getInitData 空月份 fallback 舊設定），改抓正確月份，杜絕「九月標籤配二月資料」
+    if (data.inventory.month && APP.currentMonth && String(data.inventory.month) !== APP.currentMonth) {
+      loadInventory(true);
+    } else {
+      APP.inventory = data.inventory.items;
+      renderCategoryTabs();
+      renderInventory();
+    }
   }
 }
 
